@@ -1,0 +1,91 @@
+[project]
+name = "wx-gmail-mcp"
+dynamic = ["version"]
+description = "Self-hosted, multi-account Gmail MCP server for any agent harness"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.14"
+authors = [{ name = "whitechno" }]
+keywords = ["gmail", "mcp", "model-context-protocol", "agent", "email"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Communications :: Email",
+    "Typing :: Typed",
+]
+dependencies = [
+    "mcp",
+    "google-auth",
+    "google-auth-oauthlib",
+    "google-api-python-client",
+]
+
+[project.scripts]
+wx-gmail-mcp = "wx_gmail_mcp.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/whitechno/wx-gmail-mcp"
+Repository = "https://github.com/whitechno/wx-gmail-mcp"
+Issues = "https://github.com/whitechno/wx-gmail-mcp/issues"
+Changelog = "https://github.com/whitechno/wx-gmail-mcp/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+    "pyright",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/wx_gmail_mcp/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wx_gmail_mcp"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/", "tests/", "README.md", "CHANGELOG.md", "LICENSE"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "UP",       # pyupgrade
+    "B",        # bugbear
+    "SIM",      # simplify
+    "RUF",      # ruff-specific
+    "PTH",      # use pathlib
+    "S",        # bandit
+    "T20",      # no print in library code (tools return text)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]            # assert is the point of a test
+"scripts/**" = ["T20"]           # CLI scripts print
+"src/wx_gmail_mcp/cli.py" = ["T20"]
+
+[tool.pyright]
+pythonVersion = "3.14"
+include = ["src", "tests", "scripts"]
+typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

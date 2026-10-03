@@ -1,0 +1,7 @@
+# Changes to the workflows, the guards and the reviewer brief need a
+# maintainer's eyes: the Claude reviewer skips PRs that edit its own
+# workflow, and these files control what runs with repository tokens.
+/.github/                      @whitechno
+/scripts/                      @whitechno
+/.pre-commit-config.yaml       @whitechno
+/.agents/skills/reviewing-prs/ @whitechno

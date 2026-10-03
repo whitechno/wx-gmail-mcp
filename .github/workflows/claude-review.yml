@@ -1,0 +1,236 @@
+name: Claude Code Review
+
+# The automatic reviewer for every pull request, and the `Claude review`
+# status check that the main ruleset requires. The last step fails the
+# job unless a verdict of APPROVE exists for this PR's head commit, so a
+# green check means a review happened and approved exactly this
+# revision.
+#
+# The reviewer's brief is .agents/skills/reviewing-prs/SKILL.md. The
+# prompt below only bootstraps: it points the reviewer at that file and
+# fixes the verdict format, which the gate step parses.
+#
+# The reviewer is READ-ONLY. Its tool allowlist has no shell, no uv and
+# no test runner, so a PR's own code never runs in a job that holds a
+# token. CI judges the tests in parallel; the reviewer assumes they pass.
+#
+# Known limits:
+#   * claude-code-action refuses to run a review workflow whose file
+#     differs from the copy on the default branch, so a PR cannot rewrite
+#     the reviewer that judges it. It SKIPS, writes no execution file,
+#     and the verdict step then fails. A PR that edits this file needs a
+#     human review (CODEOWNERS covers .github/) and a ruleset bypass by a
+#     repository admin to merge.
+#   * Fork PRs cannot reach the OAuth secret and Dependabot PRs cannot
+#     either; the job skips both. A skipped required check does not block
+#     merging, so a maintainer reviews those by hand (an @claude comment
+#     runs claude.yml) before merging.
+#
+# claude_args sets the model and effort. A separate step posts the run
+# stats (Claude Code version, duration, turns, cost, permission denials
+# and per-model usage) as its own comment, taking numbers and ids only
+# from the execution file.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  claude-review:
+    name: Claude review
+    if: >-
+      !github.event.pull_request.draft
+      && github.event.pull_request.user.login != 'dependabot[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # post the verdict (review or comment) and the stats
+      issues: read
+      id-token: write
+    steps:
+      - name: Checkout the PR head with full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@ed670b4cf9de2a5a570d130d2f6197b9e543cd64 # v1.0.240
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # A one-minute review never idles long enough to use the 1-hour
+          # cache, whose writes bill at a higher rate.
+          CLAUDE_CODE_PROMPT_CACHE_TTL: 5m
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # One line on purpose: a folded scalar would put a space after
+          # every comma and the tool names would stop matching.
+          # Bash(printenv CLAUDE_EFFORT) is an exact match: it reads that
+          # one variable, for the Reviewer-model line.
+          claude_args: '--model claude-opus-5-5 --effort high --allowedTools "Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(printenv CLAUDE_EFFORT),mcp__github_inline_comment__create_inline_comment"'
+          prompt: |
+            You are the REVIEWER for pull request
+            #${{ github.event.pull_request.number }} of
+            ${{ github.repository }}. You are not its author: your job is
+            to find what is wrong with it, not to improve it yourself.
+            Change no files and push no commits.
+
+            Read `.agents/skills/reviewing-prs/SKILL.md` in the checkout
+            and follow it. It is your full brief. If that file is missing,
+            review against `AGENTS.md` instead.
+
+            Review exactly this event revision, even if a newer push
+            arrives:
+              head: ${{ github.event.pull_request.head.sha }}
+              base branch: ${{ github.event.pull_request.base.ref }}
+              base oid: ${{ github.event.pull_request.base.sha }}
+            Use `git diff ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}`
+            for the diff and `git show <head>:<path>` for files at this
+            revision.
+
+            Tests and CI are out of your scope: assume the suite passes,
+            do not try to run or check it, and do not caveat your
+            write-up about it.
+
+            YOUR LAST ACT IS THE VERDICT, and you must post exactly one.
+            A run that ends without one blocks the author. Two forms are
+            accepted, and the merge gate reads BOTH:
+
+            1. First try a formal review whose --body carries your whole
+               write-up:
+                 gh pr review ${{ github.event.pull_request.number }} \
+                   --approve --body "<write-up>"
+               or --request-changes with the findings. A formal approve
+               is often refused for a GitHub Actions identity: that is
+               expected, not an error to report, and it is why form 2
+               exists.
+            2. Only if `gh pr review` failed, post a top-level comment
+               whose VERY FIRST LINE is exactly `VERDICT: APPROVE` or
+               `VERDICT: REQUEST_CHANGES`, then a blank line, then the
+               same write-up:
+                 gh pr comment ${{ github.event.pull_request.number }} \
+                   --body "VERDICT: REQUEST_CHANGES
+
+            <write-up>"
+               Do not reformat that first line: the gate parses it.
+
+            Whichever form carried it, the write-up MUST end with these
+            metadata lines, exactly in this shape, one per line, with
+            the full 40-character SHAs from the values above. The gate
+            matches the verdict to the head by the Reviewed-head line:
+              Reviewed-head: ${{ github.event.pull_request.head.sha }}
+              Reviewed-base: ${{ github.event.pull_request.base.ref }}
+              Reviewed-base-oid: ${{ github.event.pull_request.base.sha }}
+              Reviewer-model: <your exact model id> · reasoning_effort <value> · CLAUDE_EFFORT <value>
+            For reasoning_effort, look for a `reasoning_effort` tag in
+            your own context and copy its value verbatim; write
+            `not visible` if there is none. For CLAUDE_EFFORT, run
+            `printenv CLAUDE_EFFORT` once and copy its output; write
+            `unset` if it prints nothing or is refused. Never copy one
+            value into the other, and never guess. Also state which
+            verdict form you used and whether the other was refused.
+
+      - name: Post run stats
+        # The action's final result message (duration, turns, cost,
+        # permission denials, per-model usage) as its own comment, with
+        # the version of the Claude Code binary the action ran. Numbers,
+        # model ids and the version only: the execution file also holds
+        # model output. Posts nothing when the action skipped the review
+        # and wrote no file.
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXECUTION_FILE: ${{ steps.claude-review.outputs.execution_file }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ -z "$EXECUTION_FILE" ] || [ ! -s "$EXECUTION_FILE" ]; then
+            echo "::notice::No execution file: the review did not run."
+            exit 0
+          fi
+          # The binary the action's SDK ran, called outside the checkout.
+          CC_VERSION=$(cd "$RUNNER_TEMP" && "$HOME/.local/bin/claude" --version \
+            2>/dev/null | grep -Eo '^[0-9]+\.[0-9]+\.[0-9]+[0-9A-Za-z.+-]*' \
+            | head -n1) || true
+          cat > "$RUNNER_TEMP/run-stats.jq" <<'JQ'
+          def num: if type == "number" then . else null end;
+          [.[] | select(.type? == "result")] | last // empty
+          | ((.duration_ms | num) // 0 | . / 1000 | floor) as $s
+          | ((.total_cost_usd | num) // 0 | . * 1000 | round / 1000) as $cost
+          | ((.permission_denials_count | num)
+             // (.permission_denials | arrays | length) // "-") as $denied
+          | "Review run stats (head \($head))",
+            "",
+            "| Claude Code | duration | turns | cost (USD) | permission denials |",
+            "|---|---|---|---|---|",
+            "| \($version) | \($s / 60 | floor)m\($s % 60)s | \(.num_turns | num) | \($cost) | \($denied) |",
+            "",
+            "| model | usage |",
+            "|---|---|",
+            (.modelUsage // {} | objects | to_entries[]
+             | select(.key | test("^[A-Za-z0-9._:\\[\\]-]+$"))
+             | (.value | objects | to_entries
+                | map(select(.value | type == "number") | "\(.key)=\(.value)")
+                | join(", ")) as $usage
+             | "| `\(.key)` | \($usage) |")
+          JQ
+          jq -r --arg head "${HEAD_SHA:0:7}" --arg version "${CC_VERSION:-unknown}" \
+            -f "$RUNNER_TEMP/run-stats.jq" "$EXECUTION_FILE" \
+            > "$RUNNER_TEMP/run-stats.md"
+          if [ ! -s "$RUNNER_TEMP/run-stats.md" ]; then
+            echo "::notice::No result message in the execution file."
+            exit 0
+          fi
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --body-file "$RUNNER_TEMP/run-stats.md"
+
+      - name: Require an APPROVE verdict for this head
+        # The status check itself. It finds the newest verdict that names
+        # this head commit (a formal review's state, or a comment whose
+        # first line is VERDICT: ...) and fails unless it is APPROVE.
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          reviews=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100")
+          comments=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100")
+          verdict=$(jq -rn --argjson r "$reviews" --argjson c "$comments" \
+            --arg head "${HEAD_SHA:0:7}" '
+            def first_line: (.body // "") | split("\n")[0] | sub("\\s+$"; "");
+            def from_line:
+              if test("^VERDICT: (APPROVE|REQUEST_CHANGES)$")
+              then sub("^VERDICT: "; "") else null end;
+            def tagged: (.body // "") | contains("Reviewed-head: " + $head);
+            ([ $r[] | select(tagged)
+               | { t: .submitted_at,
+                   v: (if .state == "APPROVED" then "APPROVE"
+                       elif .state == "CHANGES_REQUESTED" then "REQUEST_CHANGES"
+                       else (first_line | from_line) end) }
+               | select(.v != null) ]
+             + [ $c[] | select(tagged)
+               | { t: .created_at, v: (first_line | from_line) }
+               | select(.v != null) ])
+            | sort_by(.t) | last // {v: "NONE"} | .v')
+          short="${HEAD_SHA:0:7}"
+          echo "Verdict for $short: $verdict" | tee -a "$GITHUB_STEP_SUMMARY"
+          case "$verdict" in
+            APPROVE) ;;
+            REQUEST_CHANGES)
+              echo "::error::The reviewer requested changes for $short."
+              exit 1 ;;
+            *)
+              echo "::error::No verdict found for $short. If the review was skipped (this workflow edited?), see the header."
+              exit 1 ;;
+          esac

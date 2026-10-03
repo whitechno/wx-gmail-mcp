@@ -1,0 +1,40 @@
+# --- Secrets and per-machine files: never committed -------------------------
+# Runtime home contents (~/.wx-gmail-mcp/), in case a copy lands in the tree.
+oauth_client.json
+accounts.json
+tokens/
+*.token.json
+private-patterns.txt
+downloads/
+outbox/
+# Environment files
+.env
+.env.*
+# Maintainer-only pointers and notes (AGENTS.local.md, CLAUDE.local.md, ...)
+*.local.md
+# Per-user harness settings
+.claude/*
+!.claude/skills
+.codex/
+.gemini/
+
+# --- Python -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Editors and OS ---------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+.DS_Store
