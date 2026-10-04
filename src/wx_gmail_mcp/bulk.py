@@ -32,13 +32,14 @@ class RelabelReport:
 
     def text(self, change: str) -> str:
         """Plain-text summary; ``change`` names the labels, e.g. 'added X'."""
-        noun = "message" if self.matched == 1 else "messages"
+        one = self.matched == 1
+        noun = "message" if one else "messages"
         if self.matched == 0:
             return f"No messages match '{self.query}'. Nothing to do."
         if self.dry_run:
             head = (
-                f"Dry run: {self.matched} {noun} match '{self.query}'. "
-                f"Would have {change}."
+                f"Dry run: {self.matched} {noun} {'matches' if one else 'match'} "
+                f"'{self.query}'. Would have {change}."
             )
             tail = "Run again with dry_run=false to apply."
         elif self.error:

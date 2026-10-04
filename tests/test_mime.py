@@ -57,7 +57,8 @@ def test_attachments_lists_parts_with_attachment_ids() -> None:
     atts = mime.attachments(message(parts=parts)["payload"])
     assert [a.attachment_id for a in atts] == ["att-1", "att-2"]
     assert atts[0].text() == "a.pdf (application/pdf, 1234 bytes) id=att-1"
-    assert atts[1].filename == "(unnamed)"
+    assert atts[1].filename == ""
+    assert atts[1].text().startswith("(unnamed) (")
     assert atts[1].size == 0
     assert mime.attachments(message()["payload"]) == []
 

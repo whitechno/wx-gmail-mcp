@@ -1,4 +1,5 @@
-"""Read tools: search, read_message, read_thread."""
+"""Read tools: search, search_threads, read_message, read_thread,
+list_attachments, download_attachment."""
 
 from __future__ import annotations
 
@@ -7,16 +8,22 @@ from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
-from wx_gmail_mcp import gmail, mime
+from wx_gmail_mcp import gmail, mime, safety
+from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.gmail import Runtime, header
 from wx_gmail_mcp.labels import LabelMap
 from wx_gmail_mcp.safety import register_tool
 
 MAX_SEARCH_RESULTS = 100
+METADATA_HEADERS = ["From", "Subject", "Date"]
 
 
 def _labels_line(labels: LabelMap, msg: dict[str, Any]) -> str:
     return ", ".join(labels.names(list(msg.get("labelIds", []) or []))) or "(none)"
+
+
+def _snippet(resource: dict[str, Any]) -> str:
+    return html.unescape(str(resource.get("snippet", "") or ""))
 
 
 def format_hit(labels: LabelMap, msg: dict[str, Any]) -> str:
@@ -27,7 +34,29 @@ def format_hit(labels: LabelMap, msg: dict[str, Any]) -> str:
         f"  From: {header(p, 'From')}\n"
         f"  Subj: {header(p, 'Subject')}\n"
         f"  Labels: {_labels_line(labels, msg)}\n"
-        f"  {html.unescape(str(msg.get('snippet', '') or ''))}"
+        f"  {_snippet(msg)}"
+    )
+
+
+def format_thread_hit(labels: LabelMap, thread: dict[str, Any]) -> str:
+    """One thread from ``threads.get`` (metadata): last message's headers,
+    the union of labels, the thread's own snippet."""
+    messages = thread.get("messages", []) or []
+    last = messages[-1] if messages else {}
+    p = last.get("payload", {}) or {}
+    label_ids: list[str] = []
+    for m in messages:
+        for label_id in m.get("labelIds", []) or []:
+            if label_id not in label_ids:
+                label_ids.append(str(label_id))
+    n = len(messages)
+    count = f"{n} message" if n == 1 else f"{n} messages"
+    return (
+        f"[thread {thread.get('id', '')}] {count} | last {header(p, 'Date')}\n"
+        f"  From: {header(p, 'From')}\n"
+        f"  Subj: {header(p, 'Subject')}\n"
+        f"  Labels: {', '.join(labels.names(label_ids)) or '(none)'}\n"
+        f"  {_snippet(thread) or _snippet(last)}"
     )
 
 
@@ -63,6 +92,39 @@ def format_thread_message(labels: LabelMap, msg: dict[str, Any], max_body: int) 
     )
 
 
+def pick_attachment(atts: list[mime.Attachment], ref: str) -> mime.Attachment:
+    """The attachment named by id or file name; the only one if ``ref`` is
+    empty. Gmail attachment ids change between reads, so a name works too."""
+    if not atts:
+        raise WxGmailError("The message has no attachments.")
+    ref = ref.strip()
+    if not ref:
+        if len(atts) == 1:
+            return atts[0]
+        raise WxGmailError(
+            f"The message has {len(atts)} attachments; name one by id or file name."
+        )
+    by_id = [a for a in atts if a.attachment_id == ref]
+    if by_id:
+        return by_id[0]
+    by_name = [a for a in atts if a.filename.lower() == ref.lower()]
+    if len(by_name) == 1:
+        return by_name[0]
+    if len(by_name) > 1:
+        raise WxGmailError(
+            f"{len(by_name)} attachments are named '{ref}'; use the id instead."
+        )
+    raise WxGmailError(
+        f"No attachment '{ref}' on this message. Attachments: "
+        + "; ".join(a.text() for a in atts)
+    )
+
+
+def _check_max_results(max_results: int) -> None:
+    if not 1 <= max_results <= MAX_SEARCH_RESULTS:
+        raise WxGmailError(f"max_results must be between 1 and {MAX_SEARCH_RESULTS}.")
+
+
 def register(mcp: MCPServer, rt: Runtime) -> None:
     def search(
         account: str,
@@ -75,8 +137,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         'from:someone@example.com newer_than:30d is:unread'. Returns per hit:
         message id, date, thread id, from, subject, labels, snippet, and a
         next_page_token line when more pages exist (pass it as page_token)."""
-        if not 1 <= max_results <= MAX_SEARCH_RESULTS:
-            return f"Error: max_results must be between 1 and {MAX_SEARCH_RESULTS}."
+        _check_max_results(max_results)
         svc = rt.service(account)
         page = gmail.list_messages(
             svc, query, max_results, page_token, include_spam_trash
@@ -88,12 +149,39 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         out = [
             format_hit(
                 labels,
-                gmail.get_message(
-                    svc, str(m["id"]), "metadata", ["From", "Subject", "Date"]
-                ),
+                gmail.get_message(svc, str(m["id"]), "metadata", METADATA_HEADERS),
             )
             for m in hits
         ]
+        if token := page.get("nextPageToken"):
+            out.append(f"next_page_token: {token}")
+        return "\n\n".join(out)
+
+    def search_threads(
+        account: str,
+        query: str,
+        max_results: int = 10,
+        page_token: str = "",
+        include_spam_trash: bool = False,
+    ) -> str:
+        """Search conversations instead of messages (same query syntax as
+        search). Returns per thread: thread id, message count, the last
+        message's date, from and subject, the labels in the thread, a
+        snippet, and a next_page_token line when more pages exist."""
+        _check_max_results(max_results)
+        svc = rt.service(account)
+        page = gmail.list_threads(
+            svc, query, max_results, page_token, include_spam_trash
+        )
+        hits = page.get("threads", []) or []
+        if not hits:
+            return "No threads matched."
+        labels = LabelMap.fetch(svc)
+        out = []
+        for t in hits:
+            thread = gmail.get_thread(svc, str(t["id"]), "metadata", METADATA_HEADERS)
+            thread.setdefault("snippet", t.get("snippet", ""))
+            out.append(format_thread_hit(labels, thread))
         if token := page.get("nextPageToken"):
             out.append(f"next_page_token: {token}")
         return "\n\n".join(out)
@@ -118,6 +206,45 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         cap = max_body if max_body > 0 else rt.settings.max_body
         return "\n\n".join(format_thread_message(labels, m, cap) for m in messages)
 
+    def list_attachments(account: str, message_id: str) -> str:
+        """List a message's attachments: file name, MIME type, size and the
+        attachment id to pass to download_attachment."""
+        msg = gmail.get_message(rt.service(account), message_id, "full")
+        atts = mime.attachments(msg.get("payload", {}) or {})
+        if not atts:
+            return "No attachments."
+        return "\n".join(a.text() for a in atts)
+
+    def download_attachment(
+        account: str,
+        message_id: str,
+        attachment: str = "",
+        filename: str = "",
+        overwrite: bool = False,
+    ) -> str:
+        """Save one attachment to the server's downloads directory and return
+        the path. `attachment` is an attachment id or file name from
+        list_attachments (optional when the message has exactly one).
+        `filename` renames the saved file (relative; subfolders allowed)."""
+        svc = rt.service(account)
+        msg = gmail.get_message(svc, message_id, "full")
+        att = pick_attachment(
+            mime.attachments(msg.get("payload", {}) or {}), attachment
+        )
+        name = filename.strip() or mime.safe_filename(
+            att.filename, f"{message_id}-attachment.bin"
+        )
+        data = mime.decode_attachment(
+            str(
+                gmail.get_attachment(svc, message_id, att.attachment_id).get("data", "")
+            )
+        )
+        path = safety.write_download(rt.settings, name, data, overwrite)
+        return f"Saved {path} ({len(data)} bytes, {att.mime_type})."
+
     register_tool(mcp, search)
+    register_tool(mcp, search_threads)
     register_tool(mcp, read_message)
     register_tool(mcp, read_thread)
+    register_tool(mcp, list_attachments)
+    register_tool(mcp, download_attachment)

@@ -1,10 +1,10 @@
-"""Account tools: list, add (browser OAuth) and remove."""
+"""Account tools: list, add (browser OAuth), remove, and get_profile."""
 
 from __future__ import annotations
 
 from mcp.server.mcpserver import MCPServer
 
-from wx_gmail_mcp import accounts, auth
+from wx_gmail_mcp import accounts, auth, gmail
 from wx_gmail_mcp.gmail import Runtime
 from wx_gmail_mcp.safety import register_tool
 
@@ -39,6 +39,18 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         accounts.delete_account(rt.settings, alias)
         return f"Removed account '{alias}' (local token deleted).{note}"
 
+    def get_profile(account: str) -> str:
+        """The account's Gmail profile: address, total messages and threads,
+        and the current history id."""
+        profile = gmail.get_profile(rt.service(account))
+        return (
+            f"Email: {profile.get('emailAddress', '')}\n"
+            f"Messages: {profile.get('messagesTotal', 0)}\n"
+            f"Threads: {profile.get('threadsTotal', 0)}\n"
+            f"History id: {profile.get('historyId', '')}"
+        )
+
     register_tool(mcp, list_accounts)
+    register_tool(mcp, get_profile)
     register_tool(mcp, add_account)
     register_tool(mcp, remove_account)

@@ -100,9 +100,31 @@ class Attachment:
 
     def text(self) -> str:
         return (
-            f"{self.filename} ({self.mime_type}, {self.size} bytes) "
+            f"{self.filename or '(unnamed)'} ({self.mime_type}, {self.size} bytes) "
             f"id={self.attachment_id}"
         )
+
+
+def decode_attachment(data: str) -> bytes:
+    """Decode the base64url ``data`` of ``attachments.get``."""
+    try:
+        return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
+    except (binascii.Error, ValueError) as e:
+        raise WxGmailError(f"Attachment data could not be decoded: {e}") from e
+
+
+_UNSAFE_CHARS_RE = re.compile(r"[\x00-\x1f\x7f\\/:*?\"<>|]+")
+
+
+def safe_filename(name: str, fallback: str) -> str:
+    """A sender-supplied file name reduced to one plain path component.
+
+    Directory parts, control and path characters go; leading dots and
+    spaces go too, so the result is neither hidden nor a traversal.
+    """
+    base = name.replace("\\", "/").rsplit("/", 1)[-1]
+    base = _UNSAFE_CHARS_RE.sub("_", base).strip(" .")
+    return base or fallback
 
 
 def attachments(payload: dict[str, Any]) -> list[Attachment]:
@@ -116,7 +138,7 @@ def attachments(payload: dict[str, Any]) -> list[Attachment]:
         found.append(
             Attachment(
                 attachment_id=str(attachment_id),
-                filename=str(part.get("filename") or "(unnamed)"),
+                filename=str(part.get("filename") or ""),
                 mime_type=str(part.get("mimeType") or "application/octet-stream"),
                 size=int(body.get("size") or 0),
             )

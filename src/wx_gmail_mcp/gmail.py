@@ -97,6 +97,25 @@ def iter_message_ids(
             return
 
 
+def list_threads(
+    svc: GmailService,
+    query: str,
+    max_results: int,
+    page_token: str = "",
+    include_spam_trash: bool = False,
+) -> dict[str, Any]:
+    """One page of ``threads.list``: ``threads`` and ``nextPageToken``."""
+    kwargs: dict[str, Any] = {
+        "userId": "me",
+        "q": query,
+        "maxResults": min(max_results, LIST_PAGE_LIMIT),
+        "includeSpamTrash": include_spam_trash,
+    }
+    if page_token:
+        kwargs["pageToken"] = page_token
+    return svc.users().threads().list(**kwargs).execute()
+
+
 def get_message(
     svc: GmailService,
     message_id: str,
@@ -109,8 +128,29 @@ def get_message(
     return svc.users().messages().get(**kwargs).execute()
 
 
-def get_thread(svc: GmailService, thread_id: str, fmt: str = "full") -> dict[str, Any]:
-    return svc.users().threads().get(userId="me", id=thread_id, format=fmt).execute()
+def get_thread(
+    svc: GmailService,
+    thread_id: str,
+    fmt: str = "full",
+    metadata_headers: list[str] | None = None,
+) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"userId": "me", "id": thread_id, "format": fmt}
+    if metadata_headers:
+        kwargs["metadataHeaders"] = metadata_headers
+    return svc.users().threads().get(**kwargs).execute()
+
+
+def get_attachment(
+    svc: GmailService, message_id: str, attachment_id: str
+) -> dict[str, Any]:
+    """``messages.attachments.get``: ``data`` (base64url) and ``size``."""
+    return (
+        svc.users()
+        .messages()
+        .attachments()
+        .get(userId="me", messageId=message_id, id=attachment_id)
+        .execute()
+    )
 
 
 def list_labels(svc: GmailService) -> list[dict[str, Any]]:

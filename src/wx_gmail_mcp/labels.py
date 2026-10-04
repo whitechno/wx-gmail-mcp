@@ -122,8 +122,8 @@ class LabelMap:
 def check_label_name(name: str) -> str:
     """A valid user label name: non-empty segments, not a system name.
 
-    Whitespace around the name and around each ``/`` is dropped, so the
-    name the tool reports is the name Gmail stores.
+    Whitespace around the name and around each ``/`` is dropped, so no
+    label is created with a stray space in a segment.
     """
     name = name.strip()
     if not name:
