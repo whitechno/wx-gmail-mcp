@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import MCPServer
 
+from wx_gmail_mcp.accounts import FILE_MODE, ensure_private_dir
 from wx_gmail_mcp.config import Settings
 from wx_gmail_mcp.errors import WxGmailError
 
@@ -91,6 +93,38 @@ def _resolve_inside(base: Path, name: str, what: str) -> Path:
 def download_path(settings: Settings, name: str) -> Path:
     """A write target inside ``~/.wx-gmail-mcp/downloads/``."""
     return _resolve_inside(settings.downloads_dir, name, "download path")
+
+
+def write_download(
+    settings: Settings, name: str, data: bytes, overwrite: bool = False
+) -> Path:
+    """Write ``data`` to ``name`` inside ``downloads/`` with mode 600.
+
+    Every directory from ``downloads/`` down is created with mode 700. An
+    existing file is an error unless ``overwrite`` is set.
+    """
+    path = download_path(settings, name)
+    directory = settings.downloads_dir.resolve()
+    ensure_private_dir(directory)
+    for part in path.parent.relative_to(directory).parts:
+        directory = directory / part
+        ensure_private_dir(directory)
+    flags = os.O_WRONLY | os.O_CREAT | (os.O_TRUNC if overwrite else os.O_EXCL)
+    try:
+        fd = os.open(path, flags, FILE_MODE)
+    except FileExistsError:
+        raise WxGmailError(
+            f"'{name}' already exists in {settings.downloads_dir}. Pass "
+            "overwrite=true or another filename."
+        ) from None
+    except IsADirectoryError:
+        raise WxGmailError(
+            f"'{name}' is a directory in {settings.downloads_dir}."
+        ) from None
+    with os.fdopen(fd, "wb") as f:
+        os.fchmod(fd, FILE_MODE)  # an overwritten file keeps its old mode otherwise
+        f.write(data)
+    return path
 
 
 def outbox_path(settings: Settings, name: str) -> Path:

@@ -164,11 +164,13 @@ def test_validation() -> None:
 def test_report_text_forms() -> None:
     dry = bulk.RelabelReport("q", 1, 0, True, ["[m1] d | f | s"])
     assert dry.text("added A; removed B") == (
-        "Dry run: 1 message match 'q'. Would have added A; removed B.\n"
+        "Dry run: 1 message matches 'q'. Would have added A; removed B.\n"
         "Sample:\n"
         "  [m1] d | f | s\n"
         "Run again with dry_run=false to apply."
     )
+    two = bulk.RelabelReport("q", 2, 0, True, [])
+    assert two.text("added A").startswith("Dry run: 2 messages match 'q'.")
     done = bulk.RelabelReport("q", 3, 3, False, ["a", "b"])
     assert done.text("added A") == (
         "Modified 3 messages matching 'q': added A.\nSample:\n  a\n  b"

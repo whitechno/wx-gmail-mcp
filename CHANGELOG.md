@@ -18,6 +18,12 @@ the project uses [Semantic Versioning](https://semver.org/).
   (default 5000) messages match. `modify_thread_labels` relabels whole
   threads. Both share the search-and-relabel engine (`bulk.py`) that
   filter apply will use.
+- `get_profile` (address, message and thread totals, history id),
+  `search_threads` (conversations with message count, last message
+  headers, labels and snippet), `list_attachments` and
+  `download_attachment`, which saves one attachment (by id or file
+  name) under `~/.wx-gmail-mcp/downloads/` with mode 600 and never
+  overwrites unless asked.
 - Foundations: `config` (home dir, `WX_GMAIL_ALLOW_*` gates, gate to
   scope mapping), `accounts` (alias validation, `accounts.json`), `auth`
   (OAuth flow, token refresh, scope bookkeeping, re-auth hints), `gmail`
