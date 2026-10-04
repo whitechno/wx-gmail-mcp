@@ -60,3 +60,28 @@ def test_attachments_lists_parts_with_attachment_ids() -> None:
     assert atts[1].filename == "(unnamed)"
     assert atts[1].size == 0
     assert mime.attachments(message()["payload"]) == []
+
+
+def test_body_honours_part_charset() -> None:
+    import base64
+
+    latin1 = "caf\u00e9".encode("latin-1")
+    part = {
+        "mimeType": "text/plain",
+        "headers": [
+            {"name": "Content-Type", "value": 'text/plain; charset="ISO-8859-1"'}
+        ],
+        "body": {"data": base64.urlsafe_b64encode(latin1).decode()},
+    }
+    assert mime.body_text(part, 100) == "caf\u00e9"
+    assert mime.part_charset(part) == "iso8859-1"
+    assert (
+        mime.part_charset(
+            {"headers": [{"name": "Content-Type", "value": "text/plain"}]}
+        )
+        == "utf-8"
+    )
+    bogus = {
+        "headers": [{"name": "Content-Type", "value": "text/plain; charset=no-such"}]
+    }
+    assert mime.part_charset(bogus) == "utf-8"

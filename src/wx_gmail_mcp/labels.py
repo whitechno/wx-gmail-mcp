@@ -55,8 +55,10 @@ class LabelMap:
         ref = ref.strip()
         if not ref:
             raise WxGmailError("Empty label name.")
-        if ref in self.by_id or ref in SYSTEM_LABELS:
+        if ref in self.by_id:
             return ref
+        if ref.upper() in SYSTEM_LABELS:
+            return ref.upper()
         label_id = self.by_name.get(ref.lower())
         if label_id is None:
             raise WxGmailError(

@@ -15,6 +15,10 @@ from wx_gmail_mcp.gmail import Runtime
 from wx_gmail_mcp.labels import LabelMap
 from wx_gmail_mcp.safety import register_tool, require_ids
 
+# Adding these makes mail disappear (Gmail purges Trash and Spam after 30
+# days). That is a trash action, which lives behind WX_GMAIL_ALLOW_DELETE.
+DISAPPEARING_LABELS = frozenset({"TRASH", "SPAM"})
+
 
 def _plural(n: int) -> str:
     return f"{n} message" if n == 1 else f"{n} messages"
@@ -28,7 +32,8 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         remove: Sequence[str] = (),
     ) -> str:
         """Add and/or remove labels (names or ids) on a list of messages, e.g.
-        add=['STARRED'] or remove=['INBOX']. Up to 1000 ids per call."""
+        add=['STARRED'] or remove=['INBOX']. Up to 1000 ids per call. Never
+        adds TRASH or SPAM; that is the trash tools' job."""
         ids = require_ids(list(message_ids))
         if not add and not remove:
             raise WxGmailError("Give at least one label to add or remove.")
@@ -36,6 +41,13 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         labels = LabelMap.fetch(svc)
         add_ids = labels.resolve_all(list(add))
         remove_ids = labels.resolve_all(list(remove))
+        blocked = sorted(DISAPPEARING_LABELS & set(add_ids))
+        if blocked:
+            raise WxGmailError(
+                f"modify_labels does not add {', '.join(blocked)}: that makes mail "
+                "disappear. Use the trash tools, which register only with "
+                "WX_GMAIL_ALLOW_DELETE=true."
+            )
         gmail.batch_modify(svc, ids, add_ids, remove_ids)
         parts = []
         if add_ids:

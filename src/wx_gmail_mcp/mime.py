@@ -3,14 +3,33 @@
 from __future__ import annotations
 
 import base64
+import codecs
+import re
 from dataclasses import dataclass
 from typing import Any
 
 TRUNCATED_MARKER = "\n...[truncated]"
 
 
-def decode_body(data: str) -> str:
-    return base64.urlsafe_b64decode(data.encode()).decode("utf-8", errors="replace")
+_CHARSET_RE = re.compile(r"charset\s*=\s*\"?([\w.:+-]+)\"?", re.IGNORECASE)
+
+
+def part_charset(part: dict[str, Any]) -> str:
+    """The charset named in the part's Content-Type header, else UTF-8."""
+    for h in part.get("headers", []) or []:
+        if str(h.get("name", "")).lower() == "content-type":
+            m = _CHARSET_RE.search(str(h.get("value", "")))
+            if m:
+                try:
+                    return codecs.lookup(m.group(1)).name
+                except LookupError:
+                    break
+    return "utf-8"
+
+
+def decode_body(data: str, charset: str = "utf-8") -> str:
+    raw = base64.urlsafe_b64decode(data.encode())
+    return raw.decode(charset, errors="replace")
 
 
 def _walk(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -26,7 +45,7 @@ def _first_body(payload: dict[str, Any], mime_prefix: str) -> str | None:
         if str(part.get("mimeType", "")).startswith(mime_prefix):
             data = (part.get("body") or {}).get("data")
             if data:
-                return decode_body(str(data))
+                return decode_body(str(data), part_charset(part))
     return None
 
 

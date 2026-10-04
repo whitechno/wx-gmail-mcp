@@ -169,7 +169,10 @@ def revoke_grant(settings: Settings, alias: str, request: Any = None) -> str:
     """
     path = accounts.token_path(settings, alias)
     if not path.exists():
-        raise WxGmailError(f"No token for account '{alias}'; nothing to revoke.")
+        raise WxGmailError(
+            f"No token for account '{alias}'; nothing to revoke. Call "
+            "remove_account without revoke to drop the alias."
+        )
     info = json.loads(path.read_text())
     token = info.get("refresh_token") or info.get("token")
     if not token:

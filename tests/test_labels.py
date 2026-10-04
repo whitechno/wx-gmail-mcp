@@ -23,6 +23,7 @@ def test_resolve_accepts_ids_names_and_system_labels() -> None:
     assert labels.resolve("WX-TEST") == "Label_1"
     assert labels.resolve(" inbox ") == "INBOX"
     assert labels.resolve("TRASH") == "TRASH"  # system label absent from the list
+    assert labels.resolve("spam") == "SPAM"
 
 
 def test_resolve_rejects_unknown_and_empty() -> None:

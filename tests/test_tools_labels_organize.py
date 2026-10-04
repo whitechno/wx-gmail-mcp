@@ -115,3 +115,21 @@ def test_organize_tools_reject_empty_ids(settings: Settings) -> None:
         assert call(mcp, name, account="work", message_ids=[""]).startswith(
             "Error: message_ids must contain"
         )
+
+
+def test_modify_labels_never_adds_trash_or_spam(settings: Settings) -> None:
+    fake = _fake()
+    mcp = tool_server(settings, fake)
+    for label in ("TRASH", "spam"):
+        text = call(
+            mcp, "modify_labels", account="work", message_ids=["m1"], add=[label]
+        )
+        assert text.startswith("Error: modify_labels does not add")
+        assert "WX_GMAIL_ALLOW_DELETE" in text
+    # Removing them (untrash, unspam) is harmless and allowed.
+    text = call(
+        mcp, "modify_labels", account="work", message_ids=["m1"], remove=["TRASH"]
+    )
+    assert text == "Updated 1 message: removed TRASH."
+    (batch,) = fake.calls_to("users.messages.batchModify")
+    assert batch["body"]["removeLabelIds"] == ["TRASH"]
