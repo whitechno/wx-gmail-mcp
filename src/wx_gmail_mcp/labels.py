@@ -10,6 +10,7 @@ from typing import Any
 
 from wx_gmail_mcp import gmail
 from wx_gmail_mcp.errors import WxGmailError
+from wx_gmail_mcp.safety import describe_error
 
 # Gmail's built-in labels have fixed ids equal to their names.
 SYSTEM_LABELS = frozenset(
@@ -117,6 +118,26 @@ class LabelMap:
         prefix = name.lower() + "/"
         found = [x for x in self.labels if str(x["name"]).lower().startswith(prefix)]
         return sorted(found, key=lambda x: str(x["name"]))
+
+
+def create_parents(svc: gmail.GmailService, lm: LabelMap, name: str) -> str:
+    """Create the missing ancestors of a nested name, after the label itself.
+
+    Gmail nests by name alone, so the order does not matter to it; doing
+    the label first means a rejected label leaves nothing behind. Returns
+    a note for the tool output.
+    """
+    missing = lm.missing_ancestors(name)
+    created: list[str] = []
+    for parent in missing:
+        try:
+            gmail.create_label(svc, {"name": parent})
+        except Exception as e:  # the label itself is already in place: say so
+            return f" Creating parent {parent} failed: {describe_error(e)}." + (
+                f" Created parent {', '.join(created)}." if created else ""
+            )
+        created.append(parent)
+    return f" Also created parent {', '.join(created)}." if created else ""
 
 
 def check_label_name(name: str) -> str:

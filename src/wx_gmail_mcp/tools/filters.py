@@ -6,14 +6,18 @@ settings endpoints accept no other scope, the full mail scope included.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from mcp.server.mcpserver import MCPServer
 
-from wx_gmail_mcp import auth, filters, gmail
-from wx_gmail_mcp.config import SCOPE_SETTINGS_BASIC
+from wx_gmail_mcp import auth, bulk, filters, gmail
+from wx_gmail_mcp.config import GATE_DELETE, SCOPE_FULL, SCOPE_SETTINGS_BASIC
 from wx_gmail_mcp.errors import WxGmailError
+from wx_gmail_mcp.filters import FilterRequest, FilterSpec
 from wx_gmail_mcp.gmail import GmailService, Runtime
 from wx_gmail_mcp.labels import LabelMap
 from wx_gmail_mcp.safety import register_tool
+from wx_gmail_mcp.tools.organize import describe_changes
 
 
 def register(mcp: MCPServer, rt: Runtime) -> None:
@@ -44,5 +48,155 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         flt = gmail.get_filter(svc, filter_id)
         return filters.filter_text(flt, LabelMap.fetch(svc))
 
+    def check_delete(account: str, req: FilterRequest) -> None:
+        """``delete`` is a trash action: it needs the DELETE gate and scope."""
+        if not req.delete:
+            return
+        if not rt.settings.gates.delete:
+            raise WxGmailError(
+                "delete=true adds TRASH, which makes mail disappear; it is "
+                f"available only when the server runs with {GATE_DELETE.env}=true."
+            )
+        auth.require_scope(rt.settings, account, rt.credentials(account), SCOPE_FULL)
+
+    def apply_spec(
+        svc: GmailService, spec: FilterSpec, limit: int, dry_run: bool
+    ) -> bulk.RelabelReport:
+        return bulk.relabel_by_query(
+            svc,
+            spec.search(),
+            spec.add,
+            spec.remove,
+            limit=limit,
+            dry_run=dry_run,
+            limit_name="apply_limit",
+        )
+
+    def preview(
+        svc: GmailService,
+        labels: LabelMap,
+        spec: FilterSpec,
+        apply: bool,
+        apply_limit: int,
+        what: str,
+    ) -> str:
+        """The dry-run text: the filter, labels it would create, the matches."""
+        lines = [f"Dry run: {what}.", *filters.spec_text(spec, labels)]
+        if spec.missing:
+            lines.append(f"Labels to create: {', '.join(spec.missing)}.")
+        tail = f"Run again with dry_run=false to {what}"
+        if apply:
+            report = apply_spec(svc, spec, apply_limit, True)
+            if report.matched:
+                n = report.matched
+                lines.append(
+                    f"Existing mail: {n} message{'' if n == 1 else 's'} "
+                    f"match{'es' if n == 1 else ''} '{report.query}'."
+                )
+                lines.extend(["Sample:", *(f"  {x}" for x in report.sample)])
+                tail += f" and apply it to {'that message' if n == 1 else 'them'}"
+            else:
+                lines.append(f"Existing mail: nothing matches '{report.query}'.")
+        lines.append(tail + ".")
+        return "\n".join(lines)
+
+    def create(
+        svc: GmailService,
+        labels: LabelMap,
+        spec: FilterSpec,
+        apply: bool,
+        apply_limit: int,
+    ) -> tuple[str, list[str]]:
+        """Create missing labels, then the filter, then apply it.
+
+        Returns the new filter id and the report lines. The filter exists
+        before the apply starts, so mail arriving meanwhile is still caught.
+        """
+        spec, note = filters.create_missing(svc, spec)
+        if note:
+            labels = LabelMap.fetch(svc)
+        created = gmail.create_filter(svc, spec.body())
+        filter_id = str(created.get("id", ""))
+        lines = [f"Created filter {filter_id}.", *filters.spec_text(spec, labels)]
+        if note:
+            lines.append(note)
+        if apply:
+            report = apply_spec(svc, spec, apply_limit, False)
+            change = describe_changes(labels, spec.add, spec.remove)
+            lines.append("Existing mail: " + report.text(change))
+        return filter_id, lines
+
+    def create_filter(
+        account: str,
+        from_: str = "",
+        to: str = "",
+        subject: str = "",
+        query: str = "",
+        negated_query: str = "",
+        has_attachment: bool = False,
+        exclude_chats: bool = False,
+        size: int = 0,
+        size_comparison: str = "larger",
+        add_labels: Sequence[str] = (),
+        remove_labels: Sequence[str] = (),
+        create_missing_labels: bool = False,
+        skip_inbox: bool = False,
+        mark_read: bool = False,
+        star: bool = False,
+        always_important: bool = False,
+        never_important: bool = False,
+        never_spam: bool = False,
+        category: str = "",
+        delete: bool = False,
+        apply: bool = False,
+        apply_limit: int = bulk.DEFAULT_LIMIT,
+        dry_run: bool = True,
+    ) -> str:
+        """Create a mail filter. Criteria (at least one): `from_`, `to`,
+        `subject`, `query` (Gmail search), `negated_query`, `has_attachment`,
+        `exclude_chats`, `size` in bytes with `size_comparison` larger|smaller.
+        Actions (at least one): `add_labels`/`remove_labels` by name or id
+        (`create_missing_labels=true` creates unknown names), and the
+        shortcuts `skip_inbox`, `mark_read`, `star`, `always_important`,
+        `never_important`, `never_spam`, `category`
+        (personal|social|promotions|updates|forums) and `delete` (to Trash;
+        only with WX_GMAIL_ALLOW_DELETE). A filter affects future mail;
+        `apply=true` also relabels existing matches, message by message,
+        Spam and Trash excluded, failing above `apply_limit` (default 5000).
+        `dry_run=true` (the default) shows the filter and the matches and
+        changes nothing."""
+        req = FilterRequest(
+            from_=from_,
+            to=to,
+            subject=subject,
+            query=query,
+            negated_query=negated_query,
+            has_attachment=has_attachment,
+            exclude_chats=exclude_chats,
+            size=size,
+            size_comparison=size_comparison,
+            add_labels=add_labels,
+            remove_labels=remove_labels,
+            skip_inbox=skip_inbox,
+            mark_read=mark_read,
+            star=star,
+            always_important=always_important,
+            never_important=never_important,
+            never_spam=never_spam,
+            category=category,
+            delete=delete,
+        )
+        if apply:
+            bulk.check_limit(apply_limit, "apply_limit")
+        svc = service(account)
+        check_delete(account, req)
+        labels = LabelMap.fetch(svc)
+        spec = filters.plan_filter(req, labels, create_missing_labels)
+        if dry_run:
+            return preview(svc, labels, spec, apply, apply_limit, "create the filter")
+        _, lines = create(svc, labels, spec, apply, apply_limit)
+        return "\n".join(lines)
+
     register_tool(mcp, list_filters)
     register_tool(mcp, get_filter)
+    register_tool(mcp, create_filter)

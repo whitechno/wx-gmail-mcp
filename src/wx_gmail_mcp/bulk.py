@@ -57,9 +57,9 @@ class RelabelReport:
         return "\n".join(lines)
 
 
-def check_limit(limit: int) -> int:
+def check_limit(limit: int, name: str = "limit") -> int:
     if not 1 <= limit <= MAX_LIMIT:
-        raise WxGmailError(f"limit must be between 1 and {MAX_LIMIT}.")
+        raise WxGmailError(f"{name} must be between 1 and {MAX_LIMIT}.")
     return limit
 
 
@@ -79,23 +79,25 @@ def relabel_by_query(
     *,
     limit: int = DEFAULT_LIMIT,
     dry_run: bool = True,
+    limit_name: str = "limit",
 ) -> RelabelReport:
     """Count, sample and (unless ``dry_run``) relabel the matches of ``query``.
 
     Raises if more than ``limit`` messages match: the caller then narrows
-    the query or raises the limit on purpose. A failure of any kind partway
+    the query or raises the limit on purpose (``limit_name`` is how the
+    error names the caller's parameter). A failure of any kind partway
     through the batches comes back in ``RelabelReport.error`` with the
     count done, so a re-run can finish the job.
     """
     query = query.strip()
     if not query:
         raise WxGmailError("query is required.")
-    check_limit(limit)
+    check_limit(limit, limit_name)
     ids = list(gmail.iter_message_ids(svc, query, limit + 1))
     if len(ids) > limit:
         raise WxGmailError(
             f"More than {limit} messages match '{query}'. Narrow the query or "
-            f"raise limit (at most {MAX_LIMIT})."
+            f"raise {limit_name} (at most {MAX_LIMIT})."
         )
     sample = [
         sample_line(gmail.get_message(svc, i, "metadata", ["From", "Subject", "Date"]))

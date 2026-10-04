@@ -42,7 +42,12 @@ def size_clause(criteria: Mapping[str, Any]) -> str:
     """``larger:10M`` / ``smaller:512K``, or '' without a usable size."""
     size = criteria.get("size", 0) or 0
     comparison = _text(criteria, "sizeComparison")
-    if not isinstance(size, int) or size <= 0 or comparison not in SIZE_COMPARISONS:
+    if (
+        not isinstance(size, int)
+        or isinstance(size, bool)
+        or size <= 0
+        or comparison not in SIZE_COMPARISONS
+    ):
         return ""
     return f"{comparison}:{size_text(size)}"
 

@@ -14,6 +14,16 @@ the project uses [Semantic Versioning](https://semver.org/).
   criteria, the equivalent Gmail search (the translation the web UI
   uses for "also apply to matching conversations", in `query.py`) and
   its action with label names.
+- `create_filter` (same gate and scope): criteria flags, labels by
+  name or id with `create_missing_labels`, the web UI's shortcuts
+  (`skip_inbox`, `mark_read`, `star`, `always_important`,
+  `never_important`, `never_spam`, `category`) and `delete`, which adds
+  TRASH and works only when `WX_GMAIL_ALLOW_DELETE` is also on. A filter
+  catches future mail; `apply=true` also relabels existing matches
+  through the same engine as `modify_by_query` (filter first, then the
+  apply, so mail arriving in between is caught; `apply_limit` default
+  5000). `dry_run` defaults to true and shows the filter, the labels it
+  would create and the matching mail without changing anything.
 - `create_label` (nested `Parent/Child`, missing parents created,
   colors, visibility), `update_label` (rename or move, colors,
   visibility) and `delete_label` (the label only, never its messages).
