@@ -143,3 +143,13 @@ def batch_modify(
         body = {"ids": chunk, "addLabelIds": add, "removeLabelIds": remove}
         svc.users().messages().batchModify(userId="me", body=body).execute()
     return len(message_ids)
+
+
+def send_raw(svc: GmailService, raw: str) -> dict[str, Any]:
+    """``messages.send`` of a base64url RFC 822 message."""
+    return svc.users().messages().send(userId="me", body={"raw": raw}).execute()
+
+
+def create_draft(svc: GmailService, raw: str) -> dict[str, Any]:
+    body = {"message": {"raw": raw}}
+    return svc.users().drafts().create(userId="me", body=body).execute()

@@ -1,13 +1,19 @@
-"""Parse message payloads: bodies, attachment lists, display helpers."""
+"""Parse message payloads, and build outgoing messages."""
 
 from __future__ import annotations
 
 import base64
 import binascii
 import codecs
+import mimetypes
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
+from email.message import EmailMessage
+from pathlib import Path
 from typing import Any
+
+from wx_gmail_mcp.errors import WxGmailError
 
 TRUNCATED_MARKER = "\n...[truncated]"
 
@@ -67,6 +73,8 @@ def _walk(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _first_body(payload: dict[str, Any], mime_prefix: str) -> str | None:
     for part in _walk(payload):
+        if part.get("filename"):
+            continue  # an inlined text attachment is not the body
         if str(part.get("mimeType", "")).startswith(mime_prefix):
             data = (part.get("body") or {}).get("data")
             if data:
@@ -114,3 +122,72 @@ def attachments(payload: dict[str, Any]) -> list[Attachment]:
             )
         )
     return found
+
+
+# --- building outgoing messages ---------------------------------------------
+
+
+def _require(value: str, what: str) -> str:
+    if not value or not value.strip():
+        raise WxGmailError(f"{what} is required.")
+    return value.strip()
+
+
+def attachment_type(filename: str) -> tuple[str, str]:
+    """MIME main and sub type for an attachment, from its name.
+
+    Compressed files (``.gz``, ``.bz2``, ...) and ``message/*`` go as
+    ``application/octet-stream``: ``guess_type`` reports the inner type of
+    compressed files, and message parts must not be base64-encoded.
+    """
+    ctype, encoding = mimetypes.guess_type(filename)
+    if ctype is None or encoding is not None or ctype.startswith("message/"):
+        return "application", "octet-stream"
+    maintype, subtype = ctype.split("/", 1)
+    return maintype, subtype
+
+
+def build_message(
+    *,
+    to: str,
+    subject: str,
+    body: str,
+    cc: str = "",
+    bcc: str = "",
+    html: str = "",
+    attachments: Sequence[Path] = (),
+    reply_to: str = "",
+    in_reply_to: str = "",
+    references: str = "",
+) -> str:
+    """Build an RFC 822 message and return it base64url-encoded for Gmail.
+
+    Gmail sets ``From`` to the authenticated account. ``html`` adds a
+    text/html alternative next to the plain ``body``. ``attachments`` are
+    already-validated paths (see ``safety.outbox_path``).
+    """
+    to = _require(to, "to")
+    if not body and not html:
+        raise WxGmailError("Give a body, html, or both.")
+    msg = EmailMessage()
+    msg["To"] = to
+    msg["Subject"] = subject
+    if cc.strip():
+        msg["Cc"] = cc.strip()
+    if bcc.strip():
+        msg["Bcc"] = bcc.strip()
+    if reply_to.strip():
+        msg["Reply-To"] = reply_to.strip()
+    if in_reply_to.strip():
+        msg["In-Reply-To"] = in_reply_to.strip()
+    if references.strip():
+        msg["References"] = references.strip()
+    msg.set_content(body)
+    if html:
+        msg.add_alternative(html, subtype="html")
+    for path in attachments:
+        maintype, subtype = attachment_type(path.name)
+        msg.add_attachment(
+            path.read_bytes(), maintype=maintype, subtype=subtype, filename=path.name
+        )
+    return base64.urlsafe_b64encode(msg.as_bytes()).decode()

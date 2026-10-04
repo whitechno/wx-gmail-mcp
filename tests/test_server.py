@@ -27,8 +27,9 @@ ALWAYS_ON = {
     "mark_read",
     "mark_unread",
     "archive",
+    "create_draft",
 }
-SENDING: set[str] = set()
+SENDING: set[str] = {"send_message"}
 SETTINGS: set[str] = set()
 DELETE: set[str] = set()
 

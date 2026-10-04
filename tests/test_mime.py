@@ -108,3 +108,15 @@ def test_charsets_that_reject_replace_fall_back() -> None:
 def test_malformed_base64_does_not_raise() -> None:
     assert mime.decode_body("aGk") == "hi"  # unpadded
     assert mime.decode_body("!!!not base64").startswith("[body data could not")
+
+
+def test_body_skips_inlined_text_attachments() -> None:
+    parts = [
+        {
+            "mimeType": "text/plain",
+            "filename": "notes.txt",
+            "body": {"data": b64("att")},
+        },
+        {"mimeType": "text/plain", "body": {"data": b64("real body")}},
+    ]
+    assert mime.body_text(message(parts=parts)["payload"], 100) == "real body"
