@@ -215,3 +215,15 @@ def send_raw(svc: GmailService, raw: str) -> dict[str, Any]:
 def create_draft(svc: GmailService, raw: str) -> dict[str, Any]:
     body = {"message": {"raw": raw}}
     return svc.users().drafts().create(userId="me", body=body).execute()
+
+
+def list_filters(svc: GmailService) -> list[dict[str, Any]]:
+    """``settings.filters.list``: every filter of the account."""
+    return (
+        svc.users().settings().filters().list(userId="me").execute().get("filter", [])
+        or []
+    )
+
+
+def get_filter(svc: GmailService, filter_id: str) -> dict[str, Any]:
+    return svc.users().settings().filters().get(userId="me", id=filter_id).execute()

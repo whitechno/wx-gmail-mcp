@@ -8,6 +8,12 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `list_filters` and `get_filter`, registered only with
+  `WX_GMAIL_ALLOW_SETTINGS=true` and only usable by accounts that granted
+  the `gmail.settings.basic` scope. Each filter is shown with its
+  criteria, the equivalent Gmail search (the translation the web UI
+  uses for "also apply to matching conversations", in `query.py`) and
+  its action with label names.
 - `create_label` (nested `Parent/Child`, missing parents created,
   colors, visibility), `update_label` (rename or move, colors,
   visibility) and `delete_label` (the label only, never its messages).
