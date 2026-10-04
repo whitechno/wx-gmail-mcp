@@ -94,6 +94,9 @@ def test_plan_filter_missing_labels() -> None:
         filters.plan_filter(req, LM, True)
     with pytest.raises(WxGmailError, match="Empty label name"):
         filters.plan_filter(FilterRequest(from_="a", add_labels=[" "]), LM, True)
+    # A ref shaped like a label id is never a name to create.
+    with pytest.raises(WxGmailError, match="Unknown label 'Label_7'"):
+        filters.plan_filter(FilterRequest(from_="a", add_labels=["Label_7"]), LM, True)
     # Removing a label that does not exist is always an error.
     req = FilterRequest(from_="a@example.com", remove_labels=["nope"])
     with pytest.raises(WxGmailError, match="Unknown label 'nope'"):

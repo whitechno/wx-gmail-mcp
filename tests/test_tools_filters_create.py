@@ -16,7 +16,7 @@ from .test_tools_filters import filters_server
 CREATED = {"id": "ANe1Bmj-new", "criteria": {}, "action": {}}
 
 
-def _fake(ids: list[str] | None = None, **responses: Any) -> FakeGmail:
+def _fake(ids: list[str] | None = None, /, **responses: Any) -> FakeGmail:
     base: dict[str, Any] = {
         "users.labels.list": {"labels": LABELS},
         "users.settings.filters.create": CREATED,
@@ -241,7 +241,8 @@ def test_create_filter_apply_partial_failure_keeps_the_filter(tmp_path: Path) ->
         "before an error: HTTP 500: Backend"
     ) in text
     assert text.endswith(
-        "Run again to finish; messages already modified are unaffected."
+        "Finish with modify_by_query on the query above; messages already "
+        "modified are unaffected."
     )
 
 
@@ -279,7 +280,8 @@ def test_create_filter_creates_missing_labels_before_the_filter(tmp_path: Path) 
         '  match: from "a@example.com"\n'
         "  query: from:(a@example.com)\n"
         "  do: add wx-test/new, fresh/leaf\n"
-        "Created labels: wx-test/new (Label_10), fresh/leaf (Label_11)."
+        "Created labels: wx-test/new (Label_10), fresh/leaf (Label_11). "
+        "Also created parent fresh."
     )
     # The leaf first, then its missing parent; the existing wx-test is reused.
     assert [c["body"]["name"] for c in fake.calls_to("users.labels.create")] == [
@@ -314,7 +316,7 @@ def test_create_filter_validation_calls_nothing(tmp_path: Path) -> None:
     )
     assert call(mcp, "create_filter", **base, add_labels=["nope"]) == (
         "Error: Unknown label 'nope'. Use list_labels to see names and ids, or "
-        "pass create_missing_labels=true."
+        "pass create_missing_labels=true with a name."
     )
     assert call(mcp, "create_filter", **base, add_labels=["TRASH"]) == (
         "Error: A filter cannot add TRASH: pass delete=true (needs "
@@ -348,6 +350,110 @@ def test_create_filter_over_apply_limit_names_the_parameter(tmp_path: Path) -> N
     assert _writes(fake) == []
 
 
+def test_create_filter_apply_failure_after_creation_keeps_the_report(
+    tmp_path: Path,
+) -> None:
+    """Over the limit on a real run: the filter exists and the text says so."""
+    fake = _fake(["m1", "m2", "m3"])
+    text = call(
+        filters_server(tmp_path, fake),
+        "create_filter",
+        account="work",
+        from_="a@example.com",
+        star=True,
+        apply=True,
+        apply_limit=2,
+        dry_run=False,
+    )
+    assert text == (
+        "Created filter ANe1Bmj-new.\n"
+        '  match: from "a@example.com"\n'
+        "  query: from:(a@example.com)\n"
+        "  do: add STARRED\n"
+        "Existing mail was not changed: More than 2 messages match "
+        "'from:(a@example.com)'. Narrow the query or raise apply_limit (at most "
+        "100000). The filter exists, so do not run create_filter again; relabel "
+        "existing mail with modify_by_query on the query above (it has its own "
+        "limit)."
+    )
+    assert _writes(fake) == ["users.settings.filters.create"]
+
+    def broken(**kwargs: Any) -> dict[str, Any]:
+        raise ConnectionResetError("peer closed")
+
+    fake = _fake(["m1"], **{"users.messages.list": broken})
+    text = call(
+        filters_server(tmp_path, fake),
+        "create_filter",
+        account="work",
+        from_="a@example.com",
+        star=True,
+        apply=True,
+        dry_run=False,
+    )
+    assert text.startswith("Created filter ANe1Bmj-new.\n")
+    assert (
+        "Existing mail was not changed: ConnectionResetError: peer closed The "
+        "filter exists"
+    ) in text
+
+
+def test_create_filter_failed_create_names_the_labels_made_for_it(
+    tmp_path: Path,
+) -> None:
+    def refused(**kwargs: Any) -> dict[str, Any]:
+        raise HttpError(
+            httplib2.Response({"status": 400}),
+            b'{"error": {"message": "Filter already exists"}}',
+        )
+
+    fake = _fake(
+        **{
+            "users.labels.create": {"id": "Label_10", "name": "wx-test/new"},
+            "users.settings.filters.create": refused,
+        }
+    )
+    text = call(
+        filters_server(tmp_path, fake),
+        "create_filter",
+        account="work",
+        from_="a@example.com",
+        add_labels=["wx-test/new"],
+        create_missing_labels=True,
+        dry_run=False,
+    )
+    assert text == (
+        "Error: Creating the filter failed (HTTP 400: Filter already exists), "
+        "after labels were made for it. Created labels: wx-test/new (Label_10). "
+        "They remain; reuse or delete_label them."
+    )
+    # Without labels made, the plain API error comes through.
+    fake = _fake(**{"users.settings.filters.create": refused})
+    text = call(
+        filters_server(tmp_path, fake),
+        "create_filter",
+        account="work",
+        from_="a@example.com",
+        star=True,
+        dry_run=False,
+    )
+    assert text == "Gmail API error: HTTP 400: Filter already exists"
+
+
+def test_create_filter_id_like_name_is_not_created(tmp_path: Path) -> None:
+    fake = _fake()
+    text = call(
+        filters_server(tmp_path, fake),
+        "create_filter",
+        account="work",
+        from_="a@example.com",
+        add_labels=["Label_999"],
+        create_missing_labels=True,
+    )
+    assert text.startswith("Error: Unknown label 'Label_999'.")
+    assert _writes(fake) == []
+
+
 def test_create_filter_delete_needs_the_delete_gate_and_scope(tmp_path: Path) -> None:
     args: dict[str, Any] = {
         "account": "work",
@@ -378,6 +484,51 @@ def test_create_filter_delete_needs_the_delete_gate_and_scope(tmp_path: Path) ->
     assert text.endswith("  do: add TRASH")
     (create,) = fake.calls_to("users.settings.filters.create")
     assert create["body"]["action"] == {"addLabelIds": ["TRASH"], "removeLabelIds": []}
+
+
+def test_create_filter_delete_with_apply_trashes_only_when_both_are_on(
+    tmp_path: Path,
+) -> None:
+    args: dict[str, Any] = {
+        "account": "work",
+        "from_": "spammer@example.com",
+        "delete": True,
+        "apply": True,
+        "dry_run": False,
+    }
+    # Gate off: refused before any listing or write.
+    fake = _fake(["m1"])
+    text = call(filters_server(tmp_path, fake), "create_filter", **args)
+    assert text.startswith("Error: delete=true adds TRASH")
+    assert fake.calls == []
+    # Gate on without the full scope: same.
+    fake = _fake(["m1"])
+    text = call(filters_server(tmp_path, fake, delete=True), "create_filter", **args)
+    assert text.startswith("Error: Account 'work' has not granted the full scope.")
+    assert fake.calls == []
+    # Both on: the filter is created, then existing matches go to Trash.
+    fake = _fake(["m1", "m2"])
+    scopes = (*BASE_SCOPES, SCOPE_SETTINGS_BASIC, SCOPE_FULL)
+    text = call(
+        filters_server(tmp_path, fake, scopes=scopes, delete=True),
+        "create_filter",
+        **args,
+    )
+    assert text.startswith("Created filter ANe1Bmj-new.\n")
+    assert (
+        "Existing mail: Modified 2 messages matching 'from:(spammer@example.com)': "
+        "added TRASH."
+    ) in text
+    assert _writes(fake) == [
+        "users.settings.filters.create",
+        "users.messages.batchModify",
+    ]
+    (batch,) = fake.calls_to("users.messages.batchModify")
+    assert batch["body"] == {
+        "ids": ["m1", "m2"],
+        "addLabelIds": ["TRASH"],
+        "removeLabelIds": [],
+    }
 
 
 def test_create_filter_requires_the_settings_scope(tmp_path: Path) -> None:

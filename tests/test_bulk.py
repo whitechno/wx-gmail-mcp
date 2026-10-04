@@ -175,3 +175,13 @@ def test_report_text_forms() -> None:
     assert done.text("added A") == (
         "Modified 3 messages matching 'q': added A.\nSample:\n  a\n  b"
     )
+
+
+def test_report_text_retry_hint_is_configurable() -> None:
+    report = bulk.RelabelReport("q", 3, 1, False, ["s"], "HTTP 500: Backend")
+    assert report.text("added X").endswith(
+        "Run again to finish; messages already modified are unaffected."
+    )
+    assert report.text("added X", retry="Use other_tool").endswith(
+        "Use other_tool; messages already modified are unaffected."
+    )

@@ -16,8 +16,11 @@ from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.filters import FilterRequest, FilterSpec
 from wx_gmail_mcp.gmail import GmailService, Runtime
 from wx_gmail_mcp.labels import LabelMap
-from wx_gmail_mcp.safety import register_tool
+from wx_gmail_mcp.safety import describe_error, register_tool
 from wx_gmail_mcp.tools.organize import describe_changes
+
+# After a filter exists, a re-run of create_filter would make a second one.
+RETRY_HINT = "Finish with modify_by_query on the query above"
 
 
 def register(mcp: MCPServer, rt: Runtime) -> None:
@@ -115,16 +118,38 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         spec, note = filters.create_missing(svc, spec)
         if note:
             labels = LabelMap.fetch(svc)
-        created = gmail.create_filter(svc, spec.body())
+        try:
+            created = gmail.create_filter(svc, spec.body())
+        except Exception as e:
+            if not note:
+                raise
+            raise WxGmailError(
+                f"Creating the filter failed ({describe_error(e)}), after labels "
+                f"were made for it. {note} They remain; reuse or delete_label them."
+            ) from e
         filter_id = str(created.get("id", ""))
         lines = [f"Created filter {filter_id}.", *filters.spec_text(spec, labels)]
         if note:
             lines.append(note)
         if apply:
-            report = apply_spec(svc, spec, apply_limit, False)
-            change = describe_changes(labels, spec.add, spec.remove)
-            lines.append("Existing mail: " + report.text(change))
+            lines.append(apply_text(svc, labels, spec, apply_limit))
         return filter_id, lines
+
+    def apply_text(
+        svc: GmailService, labels: LabelMap, spec: FilterSpec, apply_limit: int
+    ) -> str:
+        """Apply after the filter exists; a failure must not hide that fact."""
+        try:
+            report = apply_spec(svc, spec, apply_limit, False)
+        except Exception as e:
+            reason = str(e) if isinstance(e, WxGmailError) else describe_error(e)
+            return (
+                f"Existing mail was not changed: {reason} The filter exists, so do "
+                "not run create_filter again; relabel existing mail with "
+                "modify_by_query on the query above (it has its own limit)."
+            )
+        change = describe_changes(labels, spec.add, spec.remove)
+        return "Existing mail: " + report.text(change, retry=RETRY_HINT)
 
     def create_filter(
         account: str,

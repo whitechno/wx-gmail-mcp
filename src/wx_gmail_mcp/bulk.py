@@ -30,8 +30,13 @@ class RelabelReport:
     sample: list[str] = field(default_factory=list)
     error: str = ""
 
-    def text(self, change: str) -> str:
-        """Plain-text summary; ``change`` names the labels, e.g. 'added X'."""
+    def text(self, change: str, retry: str = "Run again to finish") -> str:
+        """Plain-text summary; ``change`` names the labels, e.g. 'added X'.
+
+        ``retry`` is the advice after a partial failure: a caller whose
+        re-run would do more than relabel (``create_filter``) names a
+        better tool.
+        """
         one = self.matched == 1
         noun = "message" if one else "messages"
         if self.matched == 0:
@@ -47,7 +52,7 @@ class RelabelReport:
                 f"Modified {self.modified} of {self.matched} {noun} matching "
                 f"'{self.query}' before an error: {self.error}"
             )
-            tail = "Run again to finish; messages already modified are unaffected."
+            tail = f"{retry}; messages already modified are unaffected."
         else:
             head = f"Modified {self.matched} {noun} matching '{self.query}': {change}."
             tail = ""

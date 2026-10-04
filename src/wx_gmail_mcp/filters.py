@@ -8,6 +8,7 @@ flags into a validated criteria dict and label changes.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -27,6 +28,9 @@ CATEGORIES: dict[str, str] = {
 # A filter adds TRASH only through ``delete`` (behind WX_GMAIL_ALLOW_DELETE)
 # and never adds SPAM: Gmail has no "mark as spam" filter action.
 NEVER_ADDED = frozenset({"TRASH", "SPAM"})
+# Gmail's user label ids look like ``Label_12``; such a ref is never a name
+# to create.
+_LABEL_ID_RE = re.compile(r"^Label_\d+$")
 
 
 @dataclass(frozen=True)
@@ -166,10 +170,10 @@ def plan_filter(
         try:
             label_id = labels.resolve(ref)
         except WxGmailError:
-            if not create_missing_labels:
+            if not create_missing_labels or _LABEL_ID_RE.fullmatch(ref.strip()):
                 raise WxGmailError(
                     f"Unknown label '{ref.strip()}'. Use list_labels to see names "
-                    "and ids, or pass create_missing_labels=true."
+                    "and ids, or pass create_missing_labels=true with a name."
                 ) from None
             missing.append(check_label_name(ref))
             continue
@@ -200,13 +204,15 @@ def plan_filter(
 def create_missing(svc: gmail.GmailService, spec: FilterSpec) -> tuple[FilterSpec, str]:
     """Create ``spec.missing`` labels (parents too) and add their ids.
 
-    Returns the completed spec and a note naming what was created. The
-    label map is refreshed after each label so a parent made for one
-    missing label is not created twice for the next.
+    Returns the completed spec and a note naming what was created,
+    including the parent notes ``create_parents`` returns. The label map
+    is refreshed after each label so a parent made for one missing label
+    is not created twice for the next.
     """
     if not spec.missing:
         return spec, ""
     created: list[str] = []
+    notes: list[str] = []
     add = list(spec.add)
     for name in spec.missing:
         lm = LabelMap.fetch(svc)
@@ -217,9 +223,12 @@ def create_missing(svc: gmail.GmailService, spec: FilterSpec) -> tuple[FilterSpe
         label = gmail.create_label(svc, {"name": name})
         add.append(str(label["id"]))
         created.append(f"{name} ({label['id']})")
-        create_parents(svc, lm, name)
-    note = f"Created labels: {', '.join(created)}." if created else ""
-    return FilterSpec(spec.criteria, _dedupe(add), spec.remove, []), note
+        parent_note = create_parents(svc, lm, name).strip()
+        if parent_note:
+            notes.append(parent_note)
+    if created:
+        notes.insert(0, f"Created labels: {', '.join(created)}.")
+    return FilterSpec(spec.criteria, _dedupe(add), spec.remove, []), " ".join(notes)
 
 
 def _text(mapping: Mapping[str, Any], key: str) -> str:
