@@ -75,7 +75,10 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]            # assert is the point of a test
+"tests/**" = [
+    "S101",                       # assert is the point of a test
+    "S105", "S106", "S107",       # placeholder tokens in fixtures
+]
 "scripts/**" = ["T20"]           # CLI scripts print
 "src/wx_gmail_mcp/cli.py" = ["T20"]
 
