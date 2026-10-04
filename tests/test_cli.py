@@ -35,6 +35,17 @@ def test_auth_requires_email(capsys: pytest.CaptureFixture[str]) -> None:
     assert "--email is required" in capsys.readouterr().err
 
 
+def test_empty_alias_does_not_fall_through_to_serving(
+    env_home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(server, "serve", lambda s: pytest.fail("served"))
+    with pytest.raises(SystemExit) as exc:
+        main(["--auth", ""])
+    assert exc.value.code == 2
+    assert main(["--auth", "", "--email", "you@example.com"]) == 1
+    assert "Invalid alias" in capsys.readouterr().err
+
+
 def test_email_without_auth_and_auth_with_list_are_usage_errors(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

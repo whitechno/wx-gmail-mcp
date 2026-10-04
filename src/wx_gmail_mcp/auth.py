@@ -24,6 +24,7 @@ from googleapiclient.errors import HttpError
 from wx_gmail_mcp import accounts
 from wx_gmail_mcp.config import (
     SCOPE_FULL,
+    SCOPE_SETTINGS_BASIC,
     Gate,
     Settings,
     gate_for_scope,
@@ -89,8 +90,14 @@ def granted_scopes(creds: Credentials) -> frozenset[str]:
 
 
 def scope_covered(granted: frozenset[str], scope: str) -> bool:
-    """The full scope covers every Gmail scope."""
-    return scope in granted or SCOPE_FULL in granted
+    """Is ``scope`` usable with this grant?
+
+    The full mail scope covers reading, modifying, sending and deleting,
+    but the settings endpoints accept only ``gmail.settings.basic``.
+    """
+    if scope in granted:
+        return True
+    return SCOPE_FULL in granted and scope != SCOPE_SETTINGS_BASIC
 
 
 def ungranted_gates(settings: Settings, granted: frozenset[str]) -> list[Gate]:
@@ -205,6 +212,7 @@ def run_oauth(
 ) -> AuthResult:
     """Authorize one account and store its token under ``alias``."""
     accounts.check_alias(alias)
+    accounts.ensure_private_dir(settings.home)
     if not settings.client_file.exists():
         raise WxGmailError(
             f"Missing OAuth client at {settings.client_file}. Download a Google "

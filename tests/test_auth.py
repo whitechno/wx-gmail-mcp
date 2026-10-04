@@ -84,17 +84,25 @@ def test_malformed_token_file_is_readable(settings: Settings) -> None:
         auth.load_credentials(settings, "work")
 
 
-def test_full_scope_covers_everything() -> None:
-    assert auth.scope_covered(frozenset({SCOPE_FULL}), SCOPE_SEND)
+def test_full_scope_covers_all_but_settings() -> None:
+    full = frozenset({SCOPE_FULL})
+    assert auth.scope_covered(full, SCOPE_SEND)
+    assert auth.scope_covered(full, BASE_SCOPES[0])
+    assert not auth.scope_covered(full, SCOPE_SETTINGS_BASIC)
     assert auth.scope_covered(frozenset({SCOPE_SEND}), SCOPE_SEND)
     assert not auth.scope_covered(frozenset(BASE_SCOPES), SCOPE_SEND)
+
+
+def test_delete_grant_does_not_satisfy_settings_gate(tmp_path: Path) -> None:
+    s = make_settings(tmp_path, settings=True, delete=True)
+    assert auth.ungranted_gates(s, frozenset({SCOPE_FULL})) == [GATE_SETTINGS]
 
 
 def test_ungranted_gates(tmp_path: Path) -> None:
     s = make_settings(tmp_path, sending=True, settings=True)
     granted = frozenset((*BASE_SCOPES, SCOPE_SEND))
     assert auth.ungranted_gates(s, granted) == [GATE_SETTINGS]
-    assert auth.ungranted_gates(s, frozenset({SCOPE_FULL})) == []
+    assert auth.ungranted_gates(s, frozenset({SCOPE_FULL, SCOPE_SETTINGS_BASIC})) == []
 
 
 def test_require_scope(tmp_path: Path) -> None:
@@ -136,9 +144,14 @@ def test_account_status_lines(tmp_path: Path) -> None:
     assert "WX_GMAIL_ALLOW_SETTINGS=true wx-gmail-mcp --auth lax" in lines[3]
 
 
-def test_run_oauth_requires_client_file(settings: Settings) -> None:
+def test_run_oauth_requires_client_file_and_makes_home_private(
+    settings: Settings,
+) -> None:
+    settings.home.mkdir(parents=True)
+    settings.home.chmod(0o755)
     with pytest.raises(WxGmailError, match="Missing OAuth client"):
         auth.run_oauth(settings, "work", "you@example.com")
+    assert stat.S_IMODE(settings.home.stat().st_mode) == 0o700
 
 
 def test_run_oauth_rejects_bad_alias(settings: Settings) -> None:
@@ -185,6 +198,8 @@ def test_run_oauth_saves_token_and_actual_email(tmp_path: Path) -> None:
     }
     token = s.tokens_dir / "work.json"
     assert stat.S_IMODE(token.stat().st_mode) == 0o600
+    assert stat.S_IMODE(s.home.stat().st_mode) == 0o700
+    assert stat.S_IMODE(s.tokens_dir.stat().st_mode) == 0o700
     info = json.loads(token.read_text())
     assert info["refresh_token"] == "placeholder-refresh"
     assert info["scopes"] == [*BASE_SCOPES, SCOPE_SEND]

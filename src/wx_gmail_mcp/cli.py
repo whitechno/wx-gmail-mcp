@@ -51,13 +51,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.auth and not args.email:
+    if args.auth is not None and not args.email:
         parser.error("--email is required with --auth")
-    if args.email and not args.auth:
+    if args.email and args.auth is None:
         parser.error("--email only makes sense with --auth")
     settings = Settings.from_env()
     try:
-        if args.auth:
+        if args.auth is not None:
             print(auth.run_oauth(settings, args.auth, args.email).text())
             return 0
         if args.list:
