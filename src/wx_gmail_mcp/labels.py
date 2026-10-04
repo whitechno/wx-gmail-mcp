@@ -120,16 +120,22 @@ class LabelMap:
 
 
 def check_label_name(name: str) -> str:
-    """A valid user label name: non-empty segments, not a system name."""
+    """A valid user label name: non-empty segments, not a system name.
+
+    Whitespace around the name and around each ``/`` is dropped, so the
+    name the tool reports is the name Gmail stores.
+    """
     name = name.strip()
     if not name:
         raise WxGmailError("Label name is required.")
     if len(name) > MAX_LABEL_NAME:
         raise WxGmailError(f"Label name is longer than {MAX_LABEL_NAME} characters.")
-    if any(not seg.strip() for seg in name.split("/")):
+    segments = [seg.strip() for seg in name.split("/")]
+    if any(not seg for seg in segments):
         raise WxGmailError(
             f"Label name '{name}' has an empty segment; nest as 'Parent/Child'."
         )
+    name = "/".join(segments)
     if name.upper() in SYSTEM_LABELS:
         raise WxGmailError(f"'{name}' is a system label name.")
     return name

@@ -12,6 +12,12 @@ the project uses [Semantic Versioning](https://semver.org/).
   colors, visibility), `update_label` (rename or move, colors,
   visibility) and `delete_label` (the label only, never its messages).
   System labels are refused.
+- `modify_by_query`: add or remove labels on every message matching a
+  Gmail search. `dry_run` defaults to true and reports the match count
+  with a five-message sample; the call fails when more than `limit`
+  (default 5000) messages match. `modify_thread_labels` relabels whole
+  threads. Both share the search-and-relabel engine (`bulk.py`) that
+  filter apply will use.
 - Foundations: `config` (home dir, `WX_GMAIL_ALLOW_*` gates, gate to
   scope mapping), `accounts` (alias validation, `accounts.json`), `auth`
   (OAuth flow, token refresh, scope bookkeeping, re-auth hints), `gmail`

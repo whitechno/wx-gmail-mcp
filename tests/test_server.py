@@ -30,6 +30,8 @@ ALWAYS_ON = {
     "mark_read",
     "mark_unread",
     "archive",
+    "modify_thread_labels",
+    "modify_by_query",
     "create_draft",
 }
 SENDING: set[str] = {"send_message"}

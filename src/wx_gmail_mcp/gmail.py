@@ -144,6 +144,14 @@ def modify_message(
     )
 
 
+def modify_thread(
+    svc: GmailService, thread_id: str, add: list[str], remove: list[str]
+) -> dict[str, Any]:
+    """``threads.modify``: every message in the thread gets the change."""
+    body = {"addLabelIds": add, "removeLabelIds": remove}
+    return svc.users().threads().modify(userId="me", id=thread_id, body=body).execute()
+
+
 def chunked(items: list[str], size: int) -> Iterator[list[str]]:
     for i in range(0, len(items), size):
         yield items[i : i + size]
