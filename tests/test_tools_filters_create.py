@@ -219,6 +219,31 @@ def test_create_filter_with_apply_creates_first_then_relabels(tmp_path: Path) ->
     }
 
 
+def test_create_filter_apply_uses_the_labels_it_created(tmp_path: Path) -> None:
+    """Found live: the apply once ran with the spec from before the label
+    existed, so the new label was never added to existing mail."""
+    fake = _fake(
+        ["m1"], **{"users.labels.create": {"id": "Label_10", "name": "wx-test/new"}}
+    )
+    text = call(
+        filters_server(tmp_path, fake),
+        "create_filter",
+        account="work",
+        from_="a@example.com",
+        add_labels=["wx-test/new"],
+        create_missing_labels=True,
+        mark_read=True,
+        apply=True,
+        dry_run=False,
+    )
+    assert "Existing mail: Modified 1 message matching 'from:(a@example.com)': " in text
+    (create,) = fake.calls_to("users.settings.filters.create")
+    (batch,) = fake.calls_to("users.messages.batchModify")
+    assert create["body"]["action"]["addLabelIds"] == ["Label_10"]
+    assert batch["body"]["addLabelIds"] == ["Label_10"]
+    assert batch["body"]["removeLabelIds"] == ["UNREAD"]
+
+
 def test_create_filter_apply_partial_failure_keeps_the_filter(tmp_path: Path) -> None:
     def broken(**kwargs: Any) -> dict[str, Any]:
         raise HttpError(

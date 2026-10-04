@@ -287,3 +287,21 @@ def test_replace_filter_with_missing_labels(tmp_path: Path) -> None:
     assert "  do: add wx-test/new\n" in text
     assert "Labels to create: wx-test/new.\n" in text
     assert fake.calls_to("users.labels.create") == []
+    # A real run with apply relabels with the id the label got.
+    fake = _fake(
+        ["m1"], **{"users.labels.create": {"id": "Label_10", "name": "wx-test/new"}}
+    )
+    text = call(
+        filters_server(tmp_path, fake),
+        "replace_filter",
+        account="work",
+        filter_id="ANe1Bmj-a",
+        from_="news@example.com",
+        add_labels=["wx-test/new"],
+        create_missing_labels=True,
+        apply=True,
+        dry_run=False,
+    )
+    assert "Created labels: wx-test/new (Label_10).\n" in text
+    (batch,) = fake.calls_to("users.messages.batchModify")
+    assert batch["body"]["addLabelIds"] == ["Label_10"]
