@@ -300,6 +300,49 @@ def test_update_label_rename_parent_all_children_moved(settings: Settings) -> No
     )
 
 
+def test_update_label_rename_ignores_labels_already_under_new_name(
+    settings: Settings,
+) -> None:
+    """An orphan 'done/x' (no 'done') existed before; it did not move."""
+    orphan = {"id": "Label_7", "name": "done/x", "type": "user"}
+    before = [*LABELS, orphan]
+    after = [
+        *LABELS[:3],
+        {"id": "Label_1", "name": "done", "type": "user"},
+        {"id": "Label_2", "name": "done/sub", "type": "user"},
+        orphan,
+    ]
+    text = call(
+        tool_server(settings, _lists(before, after)),
+        "update_label",
+        account="work",
+        label="wx-test",
+        new_name="done",
+    )
+    assert text == (
+        "Updated label 'wx-test' (id Label_1): name 'done'. "
+        "Nested labels moved with it: done/sub."
+    )
+
+
+def test_create_label_reports_a_failed_parent_on_transport_error(
+    settings: Settings,
+) -> None:
+    def create(**kwargs: Any) -> dict[str, Any]:
+        if kwargs["body"]["name"] == "proj":
+            raise TimeoutError("timed out")
+        return _echo_create(**kwargs)
+
+    fake = _fake(**{"users.labels.create": create})
+    text = call(
+        tool_server(settings, fake), "create_label", account="work", name="proj/a"
+    )
+    assert text == (
+        "Created label 'proj/a' (id id-proj/a). Creating parent proj failed: "
+        "TimeoutError: timed out."
+    )
+
+
 def test_update_label_move_under_own_old_path(settings: Settings) -> None:
     """A -> A/X: the parent A must be recreated, and A/X is not its own child."""
     after = [

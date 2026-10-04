@@ -37,8 +37,13 @@ def _create_parents(svc: gmail.GmailService, lm: LabelMap, name: str) -> str:
     for parent in missing:
         try:
             gmail.create_label(svc, {"name": parent})
-        except HttpError as e:
-            return f" Creating parent {parent} failed: {describe_http_error(e)}." + (
+        except Exception as e:  # the label itself is already in place: say so
+            reason = (
+                describe_http_error(e)
+                if isinstance(e, HttpError)
+                else f"{type(e).__name__}: {e}"
+            )
+            return f" Creating parent {parent} failed: {reason}." + (
                 f" Created parent {', '.join(created)}." if created else ""
             )
         created.append(parent)
@@ -50,13 +55,15 @@ def _nested_note(
 ) -> str:
     """After renaming ``old`` to ``new``: where did its nested labels go?
 
-    The renamed label itself is excluded: moving ``A`` under ``A/X`` puts
-    it among the children of its own old name.
+    Only labels that were nested under ``old`` count: the renamed label
+    itself is not its own child (``A`` -> ``A/X``), and a label that
+    already sat under ``new`` did not move.
     """
-    if not before.children(old):
+    was_nested = {str(x["id"]) for x in before.children(old)} - {label_id}
+    if not was_nested:
         return ""
-    left = [str(x["name"]) for x in after.children(old) if x["id"] != label_id]
-    moved = [str(x["name"]) for x in after.children(new) if x["id"] != label_id]
+    left = [str(x["name"]) for x in after.children(old) if x["id"] in was_nested]
+    moved = [str(x["name"]) for x in after.children(new) if x["id"] in was_nested]
     notes = []
     if moved:
         notes.append(f" Nested labels moved with it: {', '.join(moved)}.")
