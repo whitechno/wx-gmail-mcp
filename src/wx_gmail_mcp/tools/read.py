@@ -256,8 +256,10 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             # Not a current id, part or name: maybe an id from an earlier read.
             try:
                 payload = gmail.get_attachment(svc, message_id, ref)
-            except HttpError:
-                raise no_such_attachment(atts, ref) from None
+            except HttpError as e:
+                if e.resp.status in (400, 404):  # Gmail rejected the id itself
+                    raise no_such_attachment(atts, ref) from None
+                raise
             att = _match_by_size(atts, int(payload.get("size") or -1)) or (
                 mime.Attachment(ref, "", "application/octet-stream", 0)
             )
