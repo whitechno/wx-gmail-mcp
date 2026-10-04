@@ -35,6 +35,7 @@ def _fake(**responses: Any) -> FakeGmail:
 
 def test_check_label_name() -> None:
     assert check_label_name("  Work/Clients ") == "Work/Clients"
+    assert check_label_name("Work / Clients /2026") == "Work/Clients/2026"
     for bad, reason in [
         ("", "required"),
         ("   ", "required"),
