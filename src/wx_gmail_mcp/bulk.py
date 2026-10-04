@@ -10,12 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from googleapiclient.errors import HttpError
-
 from wx_gmail_mcp import gmail
 from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.gmail import GmailService, header
-from wx_gmail_mcp.safety import describe_http_error
+from wx_gmail_mcp.safety import describe_error
 
 DEFAULT_LIMIT = 5000
 # Upper bound for ``limit``: 200 list pages of 500 ids.
@@ -84,8 +82,9 @@ def relabel_by_query(
     """Count, sample and (unless ``dry_run``) relabel the matches of ``query``.
 
     Raises if more than ``limit`` messages match: the caller then narrows
-    the query or raises the limit on purpose. A failure partway through
-    the batches comes back in ``RelabelReport.error`` with the count done.
+    the query or raises the limit on purpose. A failure of any kind partway
+    through the batches comes back in ``RelabelReport.error`` with the
+    count done, so a re-run can finish the job.
     """
     query = query.strip()
     if not query:
@@ -109,6 +108,6 @@ def relabel_by_query(
         for chunk in gmail.chunked(ids, gmail.BATCH_LIMIT):
             gmail.batch_modify(svc, chunk, add, remove)
             modified += len(chunk)
-    except HttpError as e:
-        error = describe_http_error(e)
+    except Exception as e:  # keep the count: that is what the report is for
+        error = describe_error(e)
     return RelabelReport(query, len(ids), modified, False, sample, error)

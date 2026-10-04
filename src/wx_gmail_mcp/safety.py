@@ -48,6 +48,14 @@ def describe_http_error(e: HttpError) -> str:
     return f"HTTP {status}: {reason}"
 
 
+def describe_error(e: Exception) -> str:
+    """Readable text for any failure: HTTP errors by status and message,
+    everything else by type and message."""
+    if isinstance(e, HttpError):
+        return describe_http_error(e)
+    return f"{type(e).__name__}: {e}"
+
+
 def register_tool(mcp: MCPServer, fn: ToolFn) -> None:
     """Register ``fn`` wrapped in ``safe`` as a plain-text tool."""
     mcp.add_tool(safe(fn), structured_output=False)

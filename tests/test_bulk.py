@@ -130,6 +130,26 @@ def test_partial_failure_reports_count_done() -> None:
     )
 
 
+def test_partial_failure_of_any_kind_keeps_the_count() -> None:
+    calls = 0
+
+    def flaky(**kwargs: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            raise TimeoutError("timed out")
+        return {}
+
+    fake = _fake(
+        [f"m{i}" for i in range(2500)], **{"users.messages.batchModify": flaky}
+    )
+    report = bulk.relabel_by_query(
+        fake, "x", ["Label_1"], [], limit=5000, dry_run=False
+    )
+    assert (report.matched, report.modified) == (2500, 2000)
+    assert report.error == "TimeoutError: timed out"
+
+
 def test_validation() -> None:
     fake = _fake([])
     with pytest.raises(WxGmailError, match="query is required"):

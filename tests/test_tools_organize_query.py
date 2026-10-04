@@ -196,3 +196,21 @@ def test_modify_thread_labels_partial_failure(settings: Settings) -> None:
         "HTTP 404: Requested entity was not found."
     )
     assert len(fake.calls_to("users.threads.modify")) == 2
+
+
+def test_modify_thread_labels_transport_failure(settings: Settings) -> None:
+    def broken(**kwargs: Any) -> dict[str, Any]:
+        raise ConnectionResetError("peer closed")
+
+    fake = _fake([], **{"users.threads.modify": broken})
+    text = call(
+        tool_server(settings, fake),
+        "modify_thread_labels",
+        account="work",
+        thread_ids=["t1"],
+        add=["STARRED"],
+    )
+    assert text == (
+        "Updated 0 of 1 thread before an error on thread t1: "
+        "ConnectionResetError: peer closed"
+    )

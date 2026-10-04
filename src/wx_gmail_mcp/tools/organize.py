@@ -5,14 +5,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import MCPServer
 
 from wx_gmail_mcp import bulk, gmail
 from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.gmail import Runtime
 from wx_gmail_mcp.labels import LabelMap
-from wx_gmail_mcp.safety import describe_http_error, register_tool, require_ids
+from wx_gmail_mcp.safety import describe_error, register_tool, require_ids
 
 # Adding these makes mail disappear (Gmail purges Trash and Spam after 30
 # days). That is a trash action, which lives behind WX_GMAIL_ALLOW_DELETE.
@@ -112,10 +111,10 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             for thread_id in ids:
                 gmail.modify_thread(svc, thread_id, add_ids, remove_ids)
                 done += 1
-        except HttpError as e:
+        except Exception as e:  # keep the count of threads already done
             return (
                 f"Updated {done} of {_plural(len(ids), 'thread')} before an "
-                f"error on thread {ids[done]}: {describe_http_error(e)}"
+                f"error on thread {ids[done]}: {describe_error(e)}"
             )
         return f"Updated {_plural(len(ids), 'thread')}: {change}."
 
@@ -128,10 +127,11 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         limit: int = bulk.DEFAULT_LIMIT,
     ) -> str:
         """Add and/or remove labels (names or ids) on every message matching
-        a Gmail query; Spam and Trash are not searched. `dry_run=true` (the
-        default) only counts the matches and shows a 5-message sample; run
-        again with `dry_run=false` to apply. Fails if more than `limit`
-        messages match (default 5000). Never adds TRASH or SPAM."""
+        a Gmail query (Spam and Trash only if the query names them, e.g.
+        'in:trash'). `dry_run=true` (the default) only counts the matches
+        and shows a 5-message sample; run again with `dry_run=false` to
+        apply. Fails if more than `limit` messages match (default 5000).
+        Never adds TRASH or SPAM."""
         svc = rt.service(account)
         labels = LabelMap.fetch(svc)
         add_ids, remove_ids = resolve_changes(labels, add, remove, "modify_by_query")
