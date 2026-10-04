@@ -10,7 +10,7 @@ from wx_gmail_mcp.config import Settings
 from wx_gmail_mcp.errors import WxGmailError
 
 
-@pytest.mark.parametrize("alias", ["work", "oleg-ai", "a_b", "A1", "x"])
+@pytest.mark.parametrize("alias", ["work", "team-mail", "a_b", "A1", "x"])
 def test_valid_aliases(alias: str) -> None:
     assert accounts.check_alias(alias) == alias
 
@@ -33,6 +33,21 @@ def test_save_and_load_roundtrip_with_private_modes(settings: Settings) -> None:
     assert stat.S_IMODE(settings.home.stat().st_mode) == 0o700
     assert not settings.tokens_dir.exists()
     assert accounts.known_aliases(settings) == "work"
+
+
+def test_write_private_fixes_mode_of_existing_file(settings: Settings) -> None:
+    settings.home.mkdir(parents=True)
+    settings.accounts_file.write_text("{}")
+    settings.accounts_file.chmod(0o644)
+    accounts.save_accounts(settings, {"work": "you@example.com"})
+    assert stat.S_IMODE(settings.accounts_file.stat().st_mode) == 0o600
+
+
+def test_load_rejects_malformed_json(settings: Settings) -> None:
+    settings.home.mkdir(parents=True)
+    settings.accounts_file.write_text("{not json")
+    with pytest.raises(WxGmailError, match="not valid JSON"):
+        accounts.load_accounts(settings)
 
 
 def test_load_rejects_non_object(settings: Settings) -> None:

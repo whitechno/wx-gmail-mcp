@@ -1,20 +1,25 @@
 """OAuth flow, token load/refresh and scope bookkeeping.
 
-Tokens are loaded *without* overriding scopes, so ``creds.scopes`` is the
-grant recorded in the token file. The gates say what the server wants; the
+``run_oauth`` writes the scopes Google actually granted into the token
+file (google-auth-oauthlib keeps them in ``granted_scopes``, which
+``to_json`` drops), and tokens are loaded *without* overriding scopes. So
+``creds.scopes`` is the grant. The gates say what the server wants; the
 token says what Google granted; the grant wins.
 """
 
 from __future__ import annotations
 
+import json
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from google.auth.exceptions import RefreshError
+from google.auth.exceptions import GoogleAuthError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.errors import HttpError
 
 from wx_gmail_mcp import accounts
 from wx_gmail_mcp.config import (
@@ -37,8 +42,12 @@ def reauth_command(settings: Settings, alias: str, email: str = "") -> str:
     return f"{env} {cmd}" if env else cmd
 
 
-def save_token(path: Path, creds: Credentials) -> None:
-    accounts.write_private(path, creds.to_json())
+def save_token(path: Path, creds: Credentials, scopes: list[str] | None = None) -> None:
+    """Persist ``creds``; ``scopes`` overrides the recorded scope list."""
+    info = json.loads(creds.to_json())
+    if scopes is not None:
+        info["scopes"] = scopes
+    accounts.write_private(path, json.dumps(info))
 
 
 def load_credentials(settings: Settings, alias: str) -> Credentials:
@@ -62,7 +71,7 @@ def load_credentials(settings: Settings, alias: str) -> Credentials:
     if creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
-        except RefreshError as e:
+        except GoogleAuthError as e:
             raise WxGmailError(
                 f"Token refresh failed for '{alias}' ({e}). Re-authorize with: "
                 f"{reauth_command(settings, alias)}"
@@ -143,13 +152,17 @@ EmailFetcher = Callable[[Credentials], str]
 def browser_authorize(client_file: Path, scopes: list[str], email: str) -> Credentials:
     """Run the loopback browser flow; returns the granted credentials."""
     flow = InstalledAppFlow.from_client_secrets_file(str(client_file), scopes)
+    # Google's consent screen lets the user grant a subset, and oauthlib
+    # treats any difference from the request as an error unless relaxed.
+    # Accept the grant as given; run_oauth records and reports it.
+    os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
     # offline + consent guarantees a refresh token; login_hint pre-selects
-    # the account; include_granted_scopes keeps earlier grants.
+    # the account. No include_granted_scopes: each --auth requests exactly
+    # the gates' scopes, so turning a gate off narrows the next grant.
     creds = flow.run_local_server(
         port=0,
         access_type="offline",
         prompt="consent",
-        include_granted_scopes="true",
         login_hint=email,
     )
     if not isinstance(creds, Credentials):  # pragma: no cover - installed-app flow
@@ -169,17 +182,17 @@ class AuthResult:
     requested: str
     actual: str
     scopes: frozenset[str]
+    notes: tuple[str, ...] = ()
 
     def text(self) -> str:
-        note = (
-            ""
-            if self.actual.lower() == self.requested.lower()
-            else f" (note: you signed in as {self.actual}, not {self.requested})"
-        )
-        return (
+        lines = [
             f"Authorized '{self.alias}' -> {self.actual}. Token saved. "
-            f"Scopes: {scopes_text(self.scopes)}.{note}"
-        )
+            f"Scopes: {scopes_text(self.scopes)}."
+        ]
+        if self.actual.lower() != self.requested.lower():
+            lines.append(f"Note: you signed in as {self.actual}, not {self.requested}.")
+        lines.extend(self.notes)
+        return "\n".join(lines)
 
 
 def run_oauth(
@@ -198,7 +211,22 @@ def run_oauth(
             "'Desktop app' OAuth client JSON and save it there (mode 600)."
         )
     creds = authorize(settings.client_file, settings.scopes(), email)
-    actual = fetch_email(creds) or email
-    save_token(accounts.token_path(settings, alias), creds)
+    # The real grant; a user may have unchecked scopes on the consent screen.
+    granted = list(creds.granted_scopes or creds.scopes or [])
+    # Save first: a failed profile lookup must not throw away the consent.
+    save_token(accounts.token_path(settings, alias), creds, granted)
+    notes: list[str] = []
+    try:
+        actual = fetch_email(creds) or email
+    except (HttpError, GoogleAuthError, OSError) as e:
+        actual = email
+        notes.append(f"Note: could not confirm the address with Gmail ({e}).")
     accounts.set_account(settings, alias, actual)
-    return AuthResult(alias, email, actual, granted_scopes(creds))
+    granted_set = frozenset(granted)
+    for gate in ungranted_gates(settings, granted_set):
+        notes.append(
+            f"Warning: {gate.env} is on but the {scope_label(gate.scope)} "
+            "scope was not granted; its tools will fail until you re-run "
+            "--auth and allow it."
+        )
+    return AuthResult(alias, email, actual, granted_set, tuple(notes))

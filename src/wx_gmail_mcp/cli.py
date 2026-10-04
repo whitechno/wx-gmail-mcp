@@ -12,6 +12,9 @@ import argparse
 import sys
 from collections.abc import Sequence
 
+from google.auth.exceptions import GoogleAuthError
+from googleapiclient.errors import HttpError
+
 from wx_gmail_mcp import __version__, auth, server
 from wx_gmail_mcp.config import Settings
 from wx_gmail_mcp.errors import WxGmailError
@@ -30,16 +33,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
-    parser.add_argument(
+    command = parser.add_mutually_exclusive_group()
+    command.add_argument(
         "--auth",
         metavar="ALIAS",
         help="authorize a Gmail account in the browser and store its token",
     )
-    parser.add_argument(
-        "--email", metavar="ADDRESS", help="account to sign in with (for --auth)"
+    command.add_argument(
+        "--list", action="store_true", help="list accounts, token health, scopes"
     )
     parser.add_argument(
-        "--list", action="store_true", help="list accounts, token health, scopes"
+        "--email", metavar="ADDRESS", help="account to sign in with (for --auth)"
     )
     return parser
 
@@ -49,6 +53,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.auth and not args.email:
         parser.error("--email is required with --auth")
+    if args.email and not args.auth:
+        parser.error("--email only makes sense with --auth")
     settings = Settings.from_env()
     try:
         if args.auth:
@@ -59,6 +65,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
     except WxGmailError as e:
         print(f"{PROG}: error: {e}", file=sys.stderr)
+        return 1
+    except (HttpError, GoogleAuthError, OSError) as e:
+        print(f"{PROG}: error: {type(e).__name__}: {e}", file=sys.stderr)
         return 1
     server.serve(settings)
     return 0

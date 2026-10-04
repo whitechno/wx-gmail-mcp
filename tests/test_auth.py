@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import stat
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -146,12 +147,10 @@ def test_run_oauth_rejects_bad_alias(settings: Settings) -> None:
         auth.run_oauth(settings, "../x", "you@example.com")
 
 
-def test_run_oauth_saves_token_and_actual_email(tmp_path: Path) -> None:
-    s = make_settings(tmp_path, sending=True)
-    write_client(s)
-    seen: dict[str, Any] = {}
-
-    def fake_authorize(client: Path, scopes: list[str], email: str) -> Credentials:
+def _fake_authorize(
+    seen: dict[str, Any], granted: list[str] | None = None
+) -> auth.Authorizer:
+    def authorize(client: Path, scopes: list[str], email: str) -> Credentials:
         seen.update(client=client, scopes=scopes, email=email)
         return Credentials(
             token="placeholder-access",
@@ -160,13 +159,23 @@ def test_run_oauth_saves_token_and_actual_email(tmp_path: Path) -> None:
             client_id="placeholder.apps.example",
             client_secret="placeholder-secret",
             scopes=scopes,
+            granted_scopes=granted,
+            # Not expired, so a later load does not try to refresh.
+            expiry=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=1),
         )
 
+    return authorize
+
+
+def test_run_oauth_saves_token_and_actual_email(tmp_path: Path) -> None:
+    s = make_settings(tmp_path, sending=True)
+    write_client(s)
+    seen: dict[str, Any] = {}
     result = auth.run_oauth(
         s,
         "work",
         "you@example.com",
-        authorize=fake_authorize,
+        authorize=_fake_authorize(seen),
         fetch_email=lambda creds: "actual@example.com",
     )
     assert seen == {
@@ -176,9 +185,66 @@ def test_run_oauth_saves_token_and_actual_email(tmp_path: Path) -> None:
     }
     token = s.tokens_dir / "work.json"
     assert stat.S_IMODE(token.stat().st_mode) == 0o600
-    assert json.loads(token.read_text())["refresh_token"] == "placeholder-refresh"
+    info = json.loads(token.read_text())
+    assert info["refresh_token"] == "placeholder-refresh"
+    assert info["scopes"] == [*BASE_SCOPES, SCOPE_SEND]
     assert json.loads(s.accounts_file.read_text()) == {"work": "actual@example.com"}
     text = result.text()
     assert text.startswith("Authorized 'work' -> actual@example.com. Token saved.")
     assert "modify, readonly, send" in text
-    assert "you signed in as actual@example.com, not you@example.com" in text
+    assert "Note: you signed in as actual@example.com, not you@example.com" in text
+    assert "Warning" not in text
+
+
+def test_run_oauth_records_partial_grant_and_warns(tmp_path: Path) -> None:
+    s = make_settings(tmp_path, sending=True, settings=True)
+    write_client(s)
+    granted = [*BASE_SCOPES, SCOPE_SEND]  # user unchecked settings.basic
+    result = auth.run_oauth(
+        s,
+        "work",
+        "you@example.com",
+        authorize=_fake_authorize({}, granted),
+        fetch_email=lambda creds: "you@example.com",
+    )
+    info = json.loads((s.tokens_dir / "work.json").read_text())
+    assert info["scopes"] == granted
+    assert result.scopes == frozenset(granted)
+    text = result.text()
+    assert "Warning: WX_GMAIL_ALLOW_SETTINGS is on but the settings.basic" in text
+    assert "WX_GMAIL_ALLOW_SENDING" not in text
+    # What --list sees afterwards is the real grant, not the request.
+    creds = auth.load_credentials(s, "work")
+    assert auth.ungranted_gates(s, auth.granted_scopes(creds)) == [GATE_SETTINGS]
+
+
+def test_run_oauth_records_superset_grant(tmp_path: Path) -> None:
+    s = make_settings(tmp_path)
+    write_client(s)
+    granted = [*BASE_SCOPES, SCOPE_FULL]  # Google returned more than asked
+    result = auth.run_oauth(
+        s,
+        "work",
+        "you@example.com",
+        authorize=_fake_authorize({}, granted),
+        fetch_email=lambda creds: "you@example.com",
+    )
+    assert result.scopes == frozenset(granted)
+    assert json.loads((s.tokens_dir / "work.json").read_text())["scopes"] == granted
+
+
+def test_run_oauth_keeps_token_when_profile_lookup_fails(tmp_path: Path) -> None:
+    s = make_settings(tmp_path)
+    write_client(s)
+
+    def failing(creds: Credentials) -> str:
+        raise OSError("network down")
+
+    result = auth.run_oauth(
+        s, "work", "you@example.com", authorize=_fake_authorize({}), fetch_email=failing
+    )
+    assert (s.tokens_dir / "work.json").exists()
+    assert json.loads(s.accounts_file.read_text()) == {"work": "you@example.com"}
+    assert "Note: could not confirm the address with Gmail (network down)." in (
+        result.text()
+    )

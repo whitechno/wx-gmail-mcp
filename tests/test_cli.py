@@ -35,6 +35,19 @@ def test_auth_requires_email(capsys: pytest.CaptureFixture[str]) -> None:
     assert "--email is required" in capsys.readouterr().err
 
 
+def test_email_without_auth_and_auth_with_list_are_usage_errors(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["--email", "you@example.com"])
+    assert exc.value.code == 2
+    assert "--email only makes sense with --auth" in capsys.readouterr().err
+    with pytest.raises(SystemExit) as exc:
+        main(["--auth", "work", "--email", "you@example.com", "--list"])
+    assert exc.value.code == 2
+    assert "not allowed with" in capsys.readouterr().err
+
+
 def test_auth_runs_oauth_with_env_settings(
     env_home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -65,6 +78,17 @@ def test_auth_error_is_reported_on_stderr(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "wx-gmail-mcp: error: Missing OAuth client" in captured.err
+
+
+def test_list_reports_library_errors_readably(
+    env_home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def failing(settings: Settings) -> list[str]:
+        raise OSError("disk on fire")
+
+    monkeypatch.setattr(auth, "account_status_lines", failing)
+    assert main(["--list"]) == 1
+    assert "wx-gmail-mcp: error: OSError: disk on fire" in capsys.readouterr().err
 
 
 def test_list_with_no_accounts(

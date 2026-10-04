@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import stat
 from pathlib import Path
@@ -35,17 +36,26 @@ def ensure_private_dir(path: Path) -> None:
 
 
 def write_private(path: Path, text: str) -> None:
-    """Write ``text`` to ``path`` with mode 600, creating the directory."""
+    """Write ``text`` to ``path`` with mode 600 from the first instant.
+
+    The file is created with mode 600 (not written and then chmod'ed), and
+    an existing file is forced to 600 before its content is replaced.
+    """
     ensure_private_dir(path.parent)
-    path.write_text(text)
-    path.chmod(FILE_MODE)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, FILE_MODE)
+    os.fchmod(fd, FILE_MODE)
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
 
 
 def load_accounts(settings: Settings) -> dict[str, str]:
     path = settings.accounts_file
     if not path.exists():
         return {}
-    data = json.loads(path.read_text())
+    try:
+        data = json.loads(path.read_text())
+    except ValueError as e:
+        raise WxGmailError(f"{path} is not valid JSON ({e}).") from e
     if not isinstance(data, dict):
         raise WxGmailError(f"{path} must hold a JSON object of alias -> email.")
     return {str(k): str(v) for k, v in data.items()}
