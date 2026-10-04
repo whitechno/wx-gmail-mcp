@@ -121,6 +121,20 @@ def get_label(svc: GmailService, label_id: str) -> dict[str, Any]:
     return svc.users().labels().get(userId="me", id=label_id).execute()
 
 
+def create_label(svc: GmailService, body: dict[str, Any]) -> dict[str, Any]:
+    return svc.users().labels().create(userId="me", body=body).execute()
+
+
+def patch_label(
+    svc: GmailService, label_id: str, body: dict[str, Any]
+) -> dict[str, Any]:
+    return svc.users().labels().patch(userId="me", id=label_id, body=body).execute()
+
+
+def delete_label(svc: GmailService, label_id: str) -> None:
+    svc.users().labels().delete(userId="me", id=label_id).execute()
+
+
 def modify_message(
     svc: GmailService, message_id: str, add: list[str], remove: list[str]
 ) -> dict[str, Any]:

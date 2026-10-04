@@ -119,7 +119,7 @@ def tool_server(settings: Settings, fake: FakeGmail, alias: str = "work") -> MCP
     return build_server(FakeRuntime(settings, {alias: fake}))
 
 
-def call(mcp: MCPServer, name: str, **args: Any) -> str:
+def call(mcp: MCPServer, name: str, /, **args: Any) -> str:
     """Call a tool through the MCP server and return its text."""
     result = asyncio.run(mcp.call_tool(name, args))
     assert not isinstance(result, dict)

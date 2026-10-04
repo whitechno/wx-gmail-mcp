@@ -49,6 +49,17 @@ def test_search_formats_hits_with_thread_and_labels(settings: Settings) -> None:
     ]
 
 
+def test_search_unescapes_html_entities_in_snippets(settings: Settings) -> None:
+    fake = _fake(
+        **{
+            "users.messages.list": {"messages": [{"id": "m1"}]},
+            "users.messages.get": message(snippet="Don&#39;t stop &amp; go &lt;3"),
+        }
+    )
+    text = call(tool_server(settings, fake), "search", account="work", query="x")
+    assert text.endswith("  Don't stop & go <3")
+
+
 def test_search_passes_page_token_and_spam_trash(settings: Settings) -> None:
     fake = _fake(**{"users.messages.list": {"messages": []}})
     text = call(
@@ -185,5 +196,4 @@ def test_api_errors_come_back_as_text(settings: Settings) -> None:
     text = call(
         tool_server(settings, fake), "read_message", account="work", message_id="x"
     )
-    assert text.startswith("Gmail API error:")
-    assert "gone" in text
+    assert text == "Gmail API error: HTTP 404: gone"

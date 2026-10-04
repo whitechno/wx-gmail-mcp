@@ -35,10 +35,20 @@ def test_safe_turns_errors_into_text() -> None:
 
     assert safety.safe(ok)("a") == "fine a"
     text = safety.safe(api_fail)("a")
-    assert text.startswith("Gmail API error:")
-    assert "Requested entity was not found" in text
+    assert text == "Gmail API error: HTTP 404: Requested entity was not found."
+    assert "gmail.example" not in text
     assert safety.safe(user_fail)("a") == "Error: bad alias"
     assert safety.safe(crash)("a") == "Error: KeyError: 'payload'"
+
+
+def test_describe_http_error_without_json_body() -> None:
+    resp = httplib2.Response({"status": 503})
+    resp.reason = "Service Unavailable"
+    err = HttpError(resp, b"<html>oops</html>", uri="https://gmail.example/x")
+    assert safety.describe_http_error(err) == "HTTP 503: Service Unavailable"
+    bare = HttpError(httplib2.Response({"status": 500}), b"")
+    bare.reason = ""
+    assert safety.describe_http_error(bare) == "HTTP 500: request failed"
 
 
 def _tool(account: str, query: str, max_results: int = 10, ids: list[str] = []) -> str:  # noqa: B006
