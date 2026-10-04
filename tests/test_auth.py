@@ -58,6 +58,22 @@ def test_expired_token_is_refreshed_and_saved(
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
+def test_refresh_records_the_current_grant(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_token(settings, "work", (*BASE_SCOPES, SCOPE_SEND), expired=True)
+
+    def fake_refresh(self: Credentials, request: Any) -> None:
+        self.token = "placeholder-fresh"
+        self.expiry = None
+        self._granted_scopes = list(BASE_SCOPES)  # send was revoked meanwhile
+
+    monkeypatch.setattr(Credentials, "refresh", fake_refresh)
+    creds = auth.load_credentials(settings, "work")
+    assert auth.granted_scopes(creds) == frozenset(BASE_SCOPES)
+    assert json.loads(path.read_text())["scopes"] == list(BASE_SCOPES)
+
+
 def test_refresh_failure_is_readable(
     settings: Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:

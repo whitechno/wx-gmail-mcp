@@ -14,6 +14,14 @@ the project uses [Semantic Versioning](https://semver.org/).
   (service builder, pagination, `batchModify` in chunks of 1000),
   `safety` (readable tool errors, id caps, `downloads/` and `outbox/`
   path allowlist) and `server` (gated tool registration, no tools yet).
+- The eleven always-on tools ported from the predecessor, extended:
+  `list_accounts` (granted scopes, gate warnings), `add_account`,
+  `remove_account` (optional `revoke`), `search` (thread id and labels
+  per hit, `page_token`, `include_spam_trash`), `read_message` (thread
+  id, labels, Cc, attachment list), `read_thread` (per-message id and
+  labels, `max_body`), `list_labels` (type, opt-in counts), and
+  `modify_labels`, `mark_read`, `mark_unread`, `archive` on id lists via
+  `batchModify`. Labels are accepted by name or id.
 - CLI: `--auth <alias> --email <address>` authorizes an account in the
   browser; `--list` shows accounts, token health, granted scopes and
   gates that are on but not granted; with no command the process serves
