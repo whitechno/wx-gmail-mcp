@@ -243,6 +243,86 @@ def test_update_label_move_creates_new_parents(settings: Settings) -> None:
     )
     names = [c["body"]["name"] for c in fake.calls_to("users.labels.create")]
     assert names == ["archive", "archive/2026"]
+    # The patch goes before the parents are created, from a fresh snapshot.
+    assert [p for p, _ in fake.calls if p != "users.labels.list"] == [
+        "users.labels.patch",
+        "users.labels.create",
+        "users.labels.create",
+    ]
+    assert len(fake.calls_to("users.labels.list")) == 2
+
+
+def _lists(before: list[dict[str, Any]], after: list[dict[str, Any]]) -> FakeGmail:
+    return _fake(**{"users.labels.list": [{"labels": before}, {"labels": after}]})
+
+
+def test_update_label_rename_parent_reports_moved_and_left_children(
+    settings: Settings,
+) -> None:
+    left = {"id": "Label_3", "name": "wx-test/other", "type": "user"}
+    before = [*LABELS, left]
+    after = [
+        *LABELS[:3],
+        {"id": "Label_1", "name": "done", "type": "user"},
+        {"id": "Label_2", "name": "done/sub", "type": "user"},
+        left,
+    ]
+    text = call(
+        tool_server(settings, _lists(before, after)),
+        "update_label",
+        account="work",
+        label="wx-test",
+        new_name="done",
+    )
+    assert text == (
+        "Updated label 'wx-test' (id Label_1): name 'done'. "
+        "Nested labels moved with it: done/sub. "
+        "Nested labels kept the old path and need their own rename: wx-test/other."
+    )
+
+
+def test_update_label_rename_parent_all_children_moved(settings: Settings) -> None:
+    after = [
+        *LABELS[:3],
+        {"id": "Label_1", "name": "done", "type": "user"},
+        {"id": "Label_2", "name": "done/sub", "type": "user"},
+    ]
+    text = call(
+        tool_server(settings, _lists(LABELS, after)),
+        "update_label",
+        account="work",
+        label="Label_1",
+        new_name="done",
+    )
+    assert text == (
+        "Updated label 'wx-test' (id Label_1): name 'done'. "
+        "Nested labels moved with it: done/sub."
+    )
+
+
+def test_update_label_move_under_own_old_path(settings: Settings) -> None:
+    """A -> A/X: the parent A must be recreated, and A/X is not its own child."""
+    after = [
+        *LABELS[:3],
+        {"id": "Label_1", "name": "wx-test/moved", "type": "user"},
+        LABELS[4],
+    ]
+    fake = _lists(LABELS, after)
+    text = call(
+        tool_server(settings, fake),
+        "update_label",
+        account="work",
+        label="wx-test",
+        new_name="wx-test/moved",
+    )
+    assert text == (
+        "Updated label 'wx-test' (id Label_1): name 'wx-test/moved'. "
+        "Also created parent wx-test. "
+        "Nested labels kept the old path and need their own rename: wx-test/sub."
+    )
+    assert [c["body"]["name"] for c in fake.calls_to("users.labels.create")] == [
+        "wx-test"
+    ]
 
 
 def test_update_label_colors_and_visibility_by_id(settings: Settings) -> None:
@@ -279,7 +359,10 @@ def test_update_label_rename_to_same_name_is_allowed(settings: Settings) -> None
         label="wx-test",
         new_name="WX-Test",
     )
-    assert text.startswith("Updated label 'wx-test'")
+    assert text == "Updated label 'wx-test' (id Label_1): name 'WX-Test'."
+    # No second snapshot, no parents, no nested-label note.
+    assert len(fake.calls_to("users.labels.list")) == 1
+    assert fake.calls_to("users.labels.create") == []
 
 
 def test_update_label_rejections(settings: Settings) -> None:

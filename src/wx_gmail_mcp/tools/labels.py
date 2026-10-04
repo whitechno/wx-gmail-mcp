@@ -45,13 +45,18 @@ def _create_parents(svc: gmail.GmailService, lm: LabelMap, name: str) -> str:
     return f" Also created parent {', '.join(created)}." if created else ""
 
 
-def _nested_note(svc: gmail.GmailService, lm: LabelMap, old: str, new: str) -> str:
-    """After renaming ``old`` to ``new``: where did its nested labels go?"""
-    if not lm.children(old):
+def _nested_note(
+    before: LabelMap, after: LabelMap, old: str, new: str, label_id: str
+) -> str:
+    """After renaming ``old`` to ``new``: where did its nested labels go?
+
+    The renamed label itself is excluded: moving ``A`` under ``A/X`` puts
+    it among the children of its own old name.
+    """
+    if not before.children(old):
         return ""
-    after = LabelMap.fetch(svc)
-    left = [str(x["name"]) for x in after.children(old)]
-    moved = [str(x["name"]) for x in after.children(new)]
+    left = [str(x["name"]) for x in after.children(old) if x["id"] != label_id]
+    moved = [str(x["name"]) for x in after.children(new) if x["id"] != label_id]
     notes = []
     if moved:
         notes.append(f" Nested labels moved with it: {', '.join(moved)}.")
@@ -146,9 +151,12 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             _check_free(lm, body["name"], except_id=label_id)
         gmail.patch_label(svc, label_id, body)
         note = ""
-        if "name" in body:
-            note = _create_parents(svc, lm, body["name"])
-            note += _nested_note(svc, lm, old_name, body["name"])
+        if "name" in body and body["name"].lower() != old_name.lower():
+            # A fresh snapshot: the old name is gone, so a move under the
+            # old path (A -> A/X) recreates the parent A.
+            after = LabelMap.fetch(svc)
+            note = _create_parents(svc, after, body["name"])
+            note += _nested_note(lm, after, old_name, body["name"], label_id)
         return (
             f"Updated label '{old_name}' (id {label_id}): "
             f"{labels.describe_body(body)}.{note}"
