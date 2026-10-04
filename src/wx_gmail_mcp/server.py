@@ -15,7 +15,15 @@ from mcp.server.mcpserver import MCPServer
 from wx_gmail_mcp import __version__
 from wx_gmail_mcp.config import Gates, Settings
 from wx_gmail_mcp.gmail import Runtime
-from wx_gmail_mcp.tools import accounts, drafts, labels, organize, read, send
+from wx_gmail_mcp.tools import (
+    accounts,
+    drafts,
+    filters,
+    labels,
+    organize,
+    read,
+    send,
+)
 
 SERVER_NAME = "wx-gmail-mcp"
 INSTRUCTIONS = (
@@ -30,7 +38,7 @@ GateCheck = Callable[[Gates], bool]
 TOOL_GROUPS: tuple[tuple[GateCheck, tuple[ModuleType, ...]], ...] = (
     (lambda _: True, (accounts, read, labels, organize, drafts)),
     (lambda g: g.sending, (send,)),
-    (lambda g: g.settings, ()),
+    (lambda g: g.settings, (filters,)),
     (lambda g: g.delete, ()),
 )
 
