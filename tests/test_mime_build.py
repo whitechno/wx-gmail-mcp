@@ -87,3 +87,18 @@ def test_validation() -> None:
         mime.build_message(to="a@example.com", subject="s", body="")
     # html alone is fine
     assert mime.build_message(to="a@example.com", subject="s", body="", html="<p>x</p>")
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("a.pdf", ("application", "pdf")),
+        ("notes.txt", ("text", "plain")),
+        ("logs.txt.gz", ("application", "octet-stream")),
+        ("backup.tar.gz", ("application", "octet-stream")),
+        ("mail.eml", ("application", "octet-stream")),
+        ("data.unknownext", ("application", "octet-stream")),
+    ],
+)
+def test_attachment_type(name: str, expected: tuple[str, str]) -> None:
+    assert mime.attachment_type(name) == expected

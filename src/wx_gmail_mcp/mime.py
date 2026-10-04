@@ -133,6 +133,20 @@ def _require(value: str, what: str) -> str:
     return value.strip()
 
 
+def attachment_type(filename: str) -> tuple[str, str]:
+    """MIME main and sub type for an attachment, from its name.
+
+    Compressed files (``.gz``, ``.bz2``, ...) and ``message/*`` go as
+    ``application/octet-stream``: ``guess_type`` reports the inner type of
+    compressed files, and message parts must not be base64-encoded.
+    """
+    ctype, encoding = mimetypes.guess_type(filename)
+    if ctype is None or encoding is not None or ctype.startswith("message/"):
+        return "application", "octet-stream"
+    maintype, subtype = ctype.split("/", 1)
+    return maintype, subtype
+
+
 def build_message(
     *,
     to: str,
@@ -172,8 +186,7 @@ def build_message(
     if html:
         msg.add_alternative(html, subtype="html")
     for path in attachments:
-        ctype, _ = mimetypes.guess_type(path.name)
-        maintype, subtype = (ctype or "application/octet-stream").split("/", 1)
+        maintype, subtype = attachment_type(path.name)
         msg.add_attachment(
             path.read_bytes(), maintype=maintype, subtype=subtype, filename=path.name
         )
