@@ -19,8 +19,19 @@ from wx_gmail_mcp.labels import LabelMap
 from wx_gmail_mcp.safety import describe_error, register_tool
 from wx_gmail_mcp.tools.organize import describe_changes
 
-# After a filter exists, a re-run of create_filter would make a second one.
-RETRY_HINT = "Finish with modify_by_query on the query above"
+# After a filter exists, a re-run of create_filter would make a second one,
+# so the apply is finished another way. A delete filter trashes, which
+# modify_by_query refuses: that needs the trash tools.
+FINISH_RELABEL = (
+    "relabel existing mail with modify_by_query on the query above (it has its "
+    "own limit)",
+    "Finish with modify_by_query on the query above",
+)
+FINISH_TRASH = (
+    "trash existing matches separately (search the query above, then a trash "
+    "tool, which needs WX_GMAIL_ALLOW_DELETE=true)",
+    "Finish with a trash tool on the remaining matches",
+)
 
 
 def register(mcp: MCPServer, rt: Runtime) -> None:
@@ -139,17 +150,17 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         svc: GmailService, labels: LabelMap, spec: FilterSpec, apply_limit: int
     ) -> str:
         """Apply after the filter exists; a failure must not hide that fact."""
+        on_error, on_partial = FINISH_TRASH if "TRASH" in spec.add else FINISH_RELABEL
         try:
             report = apply_spec(svc, spec, apply_limit, False)
         except Exception as e:
             reason = str(e) if isinstance(e, WxGmailError) else describe_error(e)
             return (
                 f"Existing mail was not changed: {reason} The filter exists, so do "
-                "not run create_filter again; relabel existing mail with "
-                "modify_by_query on the query above (it has its own limit)."
+                f"not create it again; {on_error}."
             )
         change = describe_changes(labels, spec.add, spec.remove)
-        return "Existing mail: " + report.text(change, retry=RETRY_HINT)
+        return "Existing mail: " + report.text(change, retry=on_partial)
 
     def create_filter(
         account: str,

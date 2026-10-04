@@ -16,7 +16,13 @@ from typing import Any
 from wx_gmail_mcp import gmail
 from wx_gmail_mcp import query as gquery
 from wx_gmail_mcp.errors import WxGmailError
-from wx_gmail_mcp.labels import LabelMap, check_label_name, create_parents
+from wx_gmail_mcp.labels import (
+    DISAPPEARING_LABELS,
+    LabelMap,
+    check_label_name,
+    create_parents,
+)
+from wx_gmail_mcp.safety import describe_error
 
 CATEGORIES: dict[str, str] = {
     "personal": "CATEGORY_PERSONAL",
@@ -27,7 +33,7 @@ CATEGORIES: dict[str, str] = {
 }
 # A filter adds TRASH only through ``delete`` (behind WX_GMAIL_ALLOW_DELETE)
 # and never adds SPAM: Gmail has no "mark as spam" filter action.
-NEVER_ADDED = frozenset({"TRASH", "SPAM"})
+NEVER_ADDED = DISAPPEARING_LABELS
 # Gmail's user label ids look like ``Label_12``; such a ref is never a name
 # to create.
 _LABEL_ID_RE = re.compile(r"^Label_\d+$")
@@ -220,15 +226,27 @@ def create_missing(svc: gmail.GmailService, spec: FilterSpec) -> tuple[FilterSpe
         if existing:  # a parent created a moment ago, or a race
             add.append(str(existing["id"]))
             continue
-        label = gmail.create_label(svc, {"name": name})
+        try:
+            label = gmail.create_label(svc, {"name": name})
+        except Exception as e:
+            made = _created_note(created, notes)
+            raise WxGmailError(
+                f"Creating label '{name}' failed ({describe_error(e)}); no filter "
+                f"was created.{' ' + made + ' They remain.' if made else ''}"
+            ) from e
         add.append(str(label["id"]))
         created.append(f"{name} ({label['id']})")
         parent_note = create_parents(svc, lm, name).strip()
         if parent_note:
             notes.append(parent_note)
-    if created:
-        notes.insert(0, f"Created labels: {', '.join(created)}.")
-    return FilterSpec(spec.criteria, _dedupe(add), spec.remove, []), " ".join(notes)
+    return FilterSpec(spec.criteria, _dedupe(add), spec.remove, []), _created_note(
+        created, notes
+    )
+
+
+def _created_note(created: list[str], notes: list[str]) -> str:
+    head = [f"Created labels: {', '.join(created)}."] if created else []
+    return " ".join([*head, *notes])
 
 
 def _text(mapping: Mapping[str, Any], key: str) -> str:

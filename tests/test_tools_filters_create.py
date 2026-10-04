@@ -372,9 +372,8 @@ def test_create_filter_apply_failure_after_creation_keeps_the_report(
         "  do: add STARRED\n"
         "Existing mail was not changed: More than 2 messages match "
         "'from:(a@example.com)'. Narrow the query or raise apply_limit (at most "
-        "100000). The filter exists, so do not run create_filter again; relabel "
-        "existing mail with modify_by_query on the query above (it has its own "
-        "limit)."
+        "100000). The filter exists, so do not create it again; relabel existing "
+        "mail with modify_by_query on the query above (it has its own limit)."
     )
     assert _writes(fake) == ["users.settings.filters.create"]
 
@@ -438,6 +437,55 @@ def test_create_filter_failed_create_names_the_labels_made_for_it(
         dry_run=False,
     )
     assert text == "Gmail API error: HTTP 400: Filter already exists"
+
+
+def test_create_filter_failed_label_names_the_labels_already_made(
+    tmp_path: Path,
+) -> None:
+    calls = 0
+
+    def second_fails(**kwargs: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise HttpError(
+                httplib2.Response({"status": 403}),
+                b'{"error": {"message": "Too many labels"}}',
+            )
+        return {"id": "Label_10", "name": kwargs["body"]["name"]}
+
+    fake = _fake(**{"users.labels.create": second_fails})
+    text = call(
+        filters_server(tmp_path, fake),
+        "create_filter",
+        account="work",
+        from_="a@example.com",
+        add_labels=["wx-test/one", "wx-test/two"],
+        create_missing_labels=True,
+        dry_run=False,
+    )
+    assert text == (
+        "Error: Creating label 'wx-test/two' failed (HTTP 403: Too many labels); "
+        "no filter was created. Created labels: wx-test/one (Label_10). They "
+        "remain."
+    )
+    assert fake.calls_to("users.settings.filters.create") == []
+    # The first label failing: nothing to list.
+    calls = 1
+    fake = _fake(**{"users.labels.create": second_fails})
+    text = call(
+        filters_server(tmp_path, fake),
+        "create_filter",
+        account="work",
+        from_="a@example.com",
+        add_labels=["wx-test/one"],
+        create_missing_labels=True,
+        dry_run=False,
+    )
+    assert text == (
+        "Error: Creating label 'wx-test/one' failed (HTTP 403: Too many labels); "
+        "no filter was created."
+    )
 
 
 def test_create_filter_id_like_name_is_not_created(tmp_path: Path) -> None:
@@ -529,6 +577,51 @@ def test_create_filter_delete_with_apply_trashes_only_when_both_are_on(
         "addLabelIds": ["TRASH"],
         "removeLabelIds": [],
     }
+
+
+def test_create_filter_delete_apply_failures_do_not_suggest_modify_by_query(
+    tmp_path: Path,
+) -> None:
+    """modify_by_query refuses TRASH, so a delete filter's hint names trash."""
+    args: dict[str, Any] = {
+        "account": "work",
+        "from_": "spammer@example.com",
+        "delete": True,
+        "apply": True,
+        "dry_run": False,
+    }
+    scopes = (*BASE_SCOPES, SCOPE_SETTINGS_BASIC, SCOPE_FULL)
+
+    def broken(**kwargs: Any) -> dict[str, Any]:
+        raise HttpError(
+            httplib2.Response({"status": 500}), b'{"error": {"message": "Backend"}}'
+        )
+
+    fake = _fake(["m1"], **{"users.messages.batchModify": broken})
+    text = call(
+        filters_server(tmp_path, fake, scopes=scopes, delete=True),
+        "create_filter",
+        **args,
+    )
+    assert text.startswith("Created filter ANe1Bmj-new.\n")
+    assert text.endswith(
+        "Finish with a trash tool on the remaining matches; messages already "
+        "modified are unaffected."
+    )
+    assert "modify_by_query" not in text
+    fake = _fake(["m1", "m2"])
+    text = call(
+        filters_server(tmp_path, fake, scopes=scopes, delete=True),
+        "create_filter",
+        **args,
+        apply_limit=1,
+    )
+    assert text.endswith(
+        "The filter exists, so do not create it again; trash existing matches "
+        "separately (search the query above, then a trash tool, which needs "
+        "WX_GMAIL_ALLOW_DELETE=true)."
+    )
+    assert "modify_by_query" not in text
 
 
 def test_create_filter_requires_the_settings_scope(tmp_path: Path) -> None:

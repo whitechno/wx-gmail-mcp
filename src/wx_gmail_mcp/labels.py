@@ -32,6 +32,10 @@ SYSTEM_LABELS = frozenset(
     }
 )
 
+# Adding these makes mail disappear (Gmail purges Trash and Spam after 30
+# days). That is a trash action, which lives behind WX_GMAIL_ALLOW_DELETE.
+DISAPPEARING_LABELS = frozenset({"TRASH", "SPAM"})
+
 LABEL_LIST_VISIBILITY = ("labelShow", "labelShowIfUnread", "labelHide")
 MESSAGE_LIST_VISIBILITY = ("show", "hide")
 # Gmail's documented cap on a label name.
