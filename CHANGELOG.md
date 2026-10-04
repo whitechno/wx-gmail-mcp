@@ -22,6 +22,10 @@ the project uses [Semantic Versioning](https://semver.org/).
   labels, `max_body`), `list_labels` (type, opt-in counts), and
   `modify_labels`, `mark_read`, `mark_unread`, `archive` on id lists via
   `batchModify`. Labels are accepted by name or id.
+- `create_draft` (always on) and `send_message` (only with
+  `WX_GMAIL_ALLOW_SENDING=true`, and only if the account granted the
+  send scope), both with `cc`, `bcc`, `html`, `reply_to` and
+  `attachments` read from `~/.wx-gmail-mcp/outbox/`.
 - CLI: `--auth <alias> --email <address>` authorizes an account in the
   browser; `--list` shows accounts, token health, granted scopes and
   gates that are on but not granted; with no command the process serves
