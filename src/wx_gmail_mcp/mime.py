@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import codecs
 import re
 from dataclasses import dataclass
@@ -23,7 +24,8 @@ def _text_codec(name: str) -> str | None:
     try:
         info = codecs.lookup(name)
         "a".encode(name)
-    except LookupError, ValueError:
+        b"\xff".decode(name, errors="replace")  # idna rejects non-strict modes
+    except LookupError, ValueError, UnicodeError:
         return None
     return info.name
 
@@ -44,10 +46,14 @@ def part_charset(part: dict[str, Any]) -> str:
 
 
 def decode_body(data: str, charset: str = "utf-8") -> str:
-    raw = base64.urlsafe_b64decode(data.encode())
+    """Decode Gmail's base64url body data; never raises on sender input."""
+    try:
+        raw = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
+    except binascii.Error, ValueError:
+        return "[body data could not be decoded]"
     try:
         return raw.decode(charset, errors="replace")
-    except LookupError:
+    except LookupError, ValueError, UnicodeError:
         return raw.decode("utf-8", errors="replace")
 
 

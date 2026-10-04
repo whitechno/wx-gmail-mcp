@@ -96,3 +96,15 @@ def test_sender_controlled_non_text_codec_falls_back_to_utf8() -> None:
         }
         assert mime.part_charset(part) == "utf-8", name
     assert mime.decode_body(b64("ok"), "base64") == "ok"
+
+
+def test_charsets_that_reject_replace_fall_back() -> None:
+    part = {"headers": [{"name": "Content-Type", "value": "text/plain; charset=idna"}]}
+    assert mime.part_charset(part) == "utf-8"
+    assert mime.decode_body(b64("ok"), "idna") == "ok"
+    assert mime.decode_body(b64("ok"), "no-such-codec") == "ok"
+
+
+def test_malformed_base64_does_not_raise() -> None:
+    assert mime.decode_body("aGk") == "hi"  # unpadded
+    assert mime.decode_body("!!!not base64").startswith("[body data could not")
