@@ -187,8 +187,10 @@ def revoke_grant(settings: Settings, alias: str, request: Any = None) -> str:
     status = int(getattr(response, "status", 0))
     if status != 200:
         raise WxGmailError(
-            f"Google refused to revoke the grant for '{alias}' (HTTP {status}). "
-            "Remove it by hand at https://myaccount.google.com/permissions."
+            f"Google refused to revoke the grant for '{alias}' (HTTP {status}); "
+            "the account was not removed. Check or remove the grant at "
+            "https://myaccount.google.com/permissions, then call remove_account "
+            "without revoke to drop the alias."
         )
     return f"Google grant for '{alias}' revoked."
 

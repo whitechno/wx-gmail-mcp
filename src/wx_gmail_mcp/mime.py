@@ -14,22 +14,41 @@ TRUNCATED_MARKER = "\n...[truncated]"
 _CHARSET_RE = re.compile(r"charset\s*=\s*\"?([\w.:+-]+)\"?", re.IGNORECASE)
 
 
+def _text_codec(name: str) -> str | None:
+    """Canonical name if ``name`` is a text encoding, else None.
+
+    ``codecs.lookup`` also knows bytes-to-bytes codecs (base64, zlib, ...);
+    encoding a str with one of those raises LookupError, which rules it out.
+    """
+    try:
+        info = codecs.lookup(name)
+        "a".encode(name)
+    except LookupError, ValueError:
+        return None
+    return info.name
+
+
 def part_charset(part: dict[str, Any]) -> str:
-    """The charset named in the part's Content-Type header, else UTF-8."""
+    """The charset named in the part's Content-Type header, else UTF-8.
+
+    The header comes from the sender, so anything unknown or not a text
+    encoding falls back to UTF-8.
+    """
     for h in part.get("headers", []) or []:
         if str(h.get("name", "")).lower() == "content-type":
             m = _CHARSET_RE.search(str(h.get("value", "")))
-            if m:
-                try:
-                    return codecs.lookup(m.group(1)).name
-                except LookupError:
-                    break
+            if m and (codec := _text_codec(m.group(1))):
+                return codec
+            break
     return "utf-8"
 
 
 def decode_body(data: str, charset: str = "utf-8") -> str:
     raw = base64.urlsafe_b64decode(data.encode())
-    return raw.decode(charset, errors="replace")
+    try:
+        return raw.decode(charset, errors="replace")
+    except LookupError:
+        return raw.decode("utf-8", errors="replace")
 
 
 def _walk(payload: dict[str, Any]) -> list[dict[str, Any]]:

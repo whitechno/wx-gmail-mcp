@@ -85,3 +85,14 @@ def test_body_honours_part_charset() -> None:
         "headers": [{"name": "Content-Type", "value": "text/plain; charset=no-such"}]
     }
     assert mime.part_charset(bogus) == "utf-8"
+
+
+def test_sender_controlled_non_text_codec_falls_back_to_utf8() -> None:
+    for name in ("base64", "rot13", "zlib", "hex", "uu", "quopri", "bz2"):
+        part = {
+            "headers": [
+                {"name": "Content-Type", "value": f"text/plain; charset={name}"}
+            ]
+        }
+        assert mime.part_charset(part) == "utf-8", name
+    assert mime.decode_body(b64("ok"), "base64") == "ok"

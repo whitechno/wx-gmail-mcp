@@ -24,8 +24,9 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
 
     def remove_account(alias: str, revoke: bool = False) -> str:
         """Forget an account: delete its local token and alias. With
-        `revoke=true`, also revoke the grant at Google; otherwise the grant
-        stays until the user removes it at myaccount.google.com/permissions."""
+        `revoke=true`, also revoke the grant at Google (this cuts off every
+        alias that points at the same address); otherwise the grant stays
+        until the user removes it at myaccount.google.com/permissions."""
         accounts.check_alias(alias)
         if alias not in accounts.load_accounts(rt.settings):
             return (

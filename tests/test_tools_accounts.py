@@ -12,7 +12,6 @@ from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.server import build_server
 
 from .conftest import FakeRuntime, call, make_settings, write_client, write_token
-from .fake_gmail import FakeGmail
 
 
 def _server(settings: Settings):
@@ -130,6 +129,5 @@ def test_revoke_grant_errors(settings: Settings) -> None:
     with pytest.raises(WxGmailError, match="nothing to revoke"):
         auth.revoke_grant(settings, "work", lambda **kw: _Response(200))
     write_token(settings, "work")
-    with pytest.raises(WxGmailError, match="HTTP 400"):
+    with pytest.raises(WxGmailError, match=r"HTTP 400.*the account was not removed"):
         auth.revoke_grant(settings, "work", lambda **kw: _Response(400))
-    FakeGmail()  # keep the import meaningful for readers of this module
