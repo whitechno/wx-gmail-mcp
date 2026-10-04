@@ -243,6 +243,24 @@ def test_download_attachment_by_part_number_and_stale_id(settings: Settings) -> 
     )
 
 
+def test_download_attachment_stale_id_other_errors_surface(settings: Settings) -> None:
+    def fetch(**kwargs: Any) -> dict[str, Any]:
+        raise _http_error(403, "Request had insufficient authentication scopes.")
+
+    fake = _fake([TEXT, PDF], **{"users.messages.attachments.get": fetch})
+    text = call(
+        tool_server(settings, fake),
+        "download_attachment",
+        account="work",
+        message_id="m1",
+        attachment="att-pdf-old",
+    )
+    assert text == (
+        "Gmail API error: HTTP 403: Request had insufficient authentication scopes."
+    )
+    assert not settings.downloads_dir.exists()
+
+
 def test_download_attachment_stale_id_without_size_match_uses_fallback_name(
     settings: Settings,
 ) -> None:
