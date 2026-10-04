@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
@@ -26,7 +27,7 @@ def format_hit(labels: LabelMap, msg: dict[str, Any]) -> str:
         f"  From: {header(p, 'From')}\n"
         f"  Subj: {header(p, 'Subject')}\n"
         f"  Labels: {_labels_line(labels, msg)}\n"
-        f"  {msg.get('snippet', '')}"
+        f"  {html.unescape(str(msg.get('snippet', '') or ''))}"
     )
 
 

@@ -28,13 +28,24 @@ def safe(fn: ToolFn) -> ToolFn:
         try:
             return fn(*args, **kwargs)
         except HttpError as e:
-            return f"Gmail API error: {e}"
+            return f"Gmail API error: {describe_http_error(e)}"
         except WxGmailError as e:
             return f"Error: {e}"
         except Exception as e:  # the model needs a message, not a trace
             return f"Error: {type(e).__name__}: {e}"
 
     return wrapper
+
+
+def describe_http_error(e: HttpError) -> str:
+    """``HTTP 404: Requested entity was not found.``
+
+    ``str(e)`` also carries the request URL and the raw error details,
+    which only cost context without helping the model.
+    """
+    status = getattr(e.resp, "status", "") or ""
+    reason = (e.reason or "").strip() or "request failed"
+    return f"HTTP {status}: {reason}"
 
 
 def register_tool(mcp: MCPServer, fn: ToolFn) -> None:

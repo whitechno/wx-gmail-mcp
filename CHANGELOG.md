@@ -8,6 +8,10 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `create_label` (nested `Parent/Child`, missing parents created,
+  colors, visibility), `update_label` (rename or move, colors,
+  visibility) and `delete_label` (the label only, never its messages).
+  System labels are refused.
 - Foundations: `config` (home dir, `WX_GMAIL_ALLOW_*` gates, gate to
   scope mapping), `accounts` (alias validation, `accounts.json`), `auth`
   (OAuth flow, token refresh, scope bookkeeping, re-auth hints), `gmail`
@@ -39,3 +43,9 @@ the project uses [Semantic Versioning](https://semver.org/).
   and run stats; `@claude` on-demand assistance.
 - Community files: AGENTS.md, CONTRIBUTING.md, SECURITY.md, CODEOWNERS,
   issue and PR templates.
+
+### Changed
+
+- `search` unescapes HTML entities in snippets (`&#39;` -> `'`).
+- Gmail API errors read `HTTP <status>: <message>` instead of the full
+  `HttpError` text with the request URL.
