@@ -14,6 +14,8 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+from urllib.parse import urlencode
 
 from google.auth.exceptions import GoogleAuthError
 from google.auth.transport.requests import Request
@@ -77,7 +79,11 @@ def load_credentials(settings: Settings, alias: str) -> Credentials:
                 f"Token refresh failed for '{alias}' ({e}). Re-authorize with: "
                 f"{reauth_command(settings, alias)}"
             ) from e
-        save_token(path, creds)
+        # A refresh reports the current grant; a user may have revoked part.
+        granted = list(creds.granted_scopes) if creds.granted_scopes else None
+        save_token(path, creds, granted)
+        if granted:
+            creds = Credentials.from_authorized_user_file(str(path))
         return creds
     raise WxGmailError(
         f"Credentials for '{alias}' are invalid or revoked. Re-authorize with: "
@@ -150,6 +156,38 @@ def account_status_lines(settings: Settings) -> list[str]:
                 f"{reauth_command(settings, alias, email)}"
             )
     return lines
+
+
+REVOKE_URL = "https://oauth2.googleapis.com/revoke"
+
+
+def revoke_grant(settings: Settings, alias: str, request: Any = None) -> str:
+    """Ask Google to revoke the stored grant for ``alias``.
+
+    Posts the refresh token (or the access token) to the revoke endpoint.
+    Raises if the token file is missing or Google answers with an error.
+    """
+    path = accounts.token_path(settings, alias)
+    if not path.exists():
+        raise WxGmailError(f"No token for account '{alias}'; nothing to revoke.")
+    info = json.loads(path.read_text())
+    token = info.get("refresh_token") or info.get("token")
+    if not token:
+        raise WxGmailError(f"Token file for '{alias}' holds no token to revoke.")
+    http = request or Request()
+    response = http(
+        url=REVOKE_URL,
+        method="POST",
+        body=urlencode({"token": token}).encode(),
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+    status = int(getattr(response, "status", 0))
+    if status != 200:
+        raise WxGmailError(
+            f"Google refused to revoke the grant for '{alias}' (HTTP {status}). "
+            "Remove it by hand at https://myaccount.google.com/permissions."
+        )
+    return f"Google grant for '{alias}' revoked."
 
 
 Authorizer = Callable[[Path, list[str], str], Credentials]
