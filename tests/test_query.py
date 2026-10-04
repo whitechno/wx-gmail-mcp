@@ -100,6 +100,7 @@ def test_every_criterion_in_web_ui_order() -> None:
         {"size": 1024, "sizeComparison": ""},
         {"size": "1024", "sizeComparison": "larger"},  # not an int
         {"size": -5, "sizeComparison": "larger"},
+        {"size": True, "sizeComparison": "larger"},  # a bool is not a size
     ],
 )
 def test_empty_or_unusable_criteria_give_an_empty_query(

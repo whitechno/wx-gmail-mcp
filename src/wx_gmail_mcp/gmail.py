@@ -227,3 +227,7 @@ def list_filters(svc: GmailService) -> list[dict[str, Any]]:
 
 def get_filter(svc: GmailService, filter_id: str) -> dict[str, Any]:
     return svc.users().settings().filters().get(userId="me", id=filter_id).execute()
+
+
+def create_filter(svc: GmailService, body: dict[str, Any]) -> dict[str, Any]:
+    return svc.users().settings().filters().create(userId="me", body=body).execute()

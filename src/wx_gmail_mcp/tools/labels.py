@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import MCPServer
 
 from wx_gmail_mcp import gmail, labels
 from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.gmail import Runtime
 from wx_gmail_mcp.labels import LabelMap
-from wx_gmail_mcp.safety import describe_http_error, register_tool
+from wx_gmail_mcp.safety import register_tool
 
 
 def format_label(label: dict[str, Any], counts: bool) -> str:
@@ -23,31 +22,6 @@ def format_label(label: dict[str, Any], counts: bool) -> str:
             f" threads={label.get('threadsTotal', 0)}"
         )
     return line
-
-
-def _create_parents(svc: gmail.GmailService, lm: LabelMap, name: str) -> str:
-    """Create the missing ancestors of a nested name, after the label itself.
-
-    Gmail nests by name alone, so the order does not matter to it; doing
-    the label first means a rejected label leaves nothing behind. Returns
-    a note for the tool output.
-    """
-    missing = lm.missing_ancestors(name)
-    created: list[str] = []
-    for parent in missing:
-        try:
-            gmail.create_label(svc, {"name": parent})
-        except Exception as e:  # the label itself is already in place: say so
-            reason = (
-                describe_http_error(e)
-                if isinstance(e, HttpError)
-                else f"{type(e).__name__}: {e}"
-            )
-            return f" Creating parent {parent} failed: {reason}." + (
-                f" Created parent {', '.join(created)}." if created else ""
-            )
-        created.append(parent)
-    return f" Also created parent {', '.join(created)}." if created else ""
 
 
 def _nested_note(
@@ -122,7 +96,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         lm = LabelMap.fetch(svc)
         _check_free(lm, body["name"])
         label = gmail.create_label(svc, body)
-        note = _create_parents(svc, lm, body["name"])
+        note = labels.create_parents(svc, lm, body["name"])
         return (
             f"Created label '{label.get('name', body['name'])}' "
             f"(id {label.get('id', '')}).{note}"
@@ -162,7 +136,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             # A fresh snapshot: the old name is gone, so a move under the
             # old path (A -> A/X) recreates the parent A.
             after = LabelMap.fetch(svc)
-            note = _create_parents(svc, after, body["name"])
+            note = labels.create_parents(svc, after, body["name"])
             note += _nested_note(lm, after, old_name, body["name"], label_id)
         return (
             f"Updated label '{old_name}' (id {label_id}): "

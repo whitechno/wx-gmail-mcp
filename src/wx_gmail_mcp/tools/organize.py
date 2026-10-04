@@ -10,12 +10,9 @@ from mcp.server.mcpserver import MCPServer
 from wx_gmail_mcp import bulk, gmail
 from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.gmail import Runtime
-from wx_gmail_mcp.labels import LabelMap
+from wx_gmail_mcp.labels import DISAPPEARING_LABELS, LabelMap
 from wx_gmail_mcp.safety import describe_error, register_tool, require_ids
 
-# Adding these makes mail disappear (Gmail purges Trash and Spam after 30
-# days). That is a trash action, which lives behind WX_GMAIL_ALLOW_DELETE.
-DISAPPEARING_LABELS = frozenset({"TRASH", "SPAM"})
 # threads.modify has no batch form: one API call per thread.
 MAX_THREAD_IDS = 100
 
