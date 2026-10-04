@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
+import httplib2
 import pytest
+from googleapiclient.errors import HttpError
 
 from wx_gmail_mcp.config import Settings
 from wx_gmail_mcp.errors import WxGmailError
@@ -109,8 +112,49 @@ def test_create_label_creates_missing_parents_first(settings: Settings) -> None:
     assert text == (
         "Created label 'proj/a/b' (id id-proj/a/b). Also created parent proj, proj/a."
     )
+    # The label itself goes first, so a rejected label leaves no parents behind.
     names = [c["body"]["name"] for c in fake.calls_to("users.labels.create")]
-    assert names == ["proj", "proj/a", "proj/a/b"]
+    assert names == ["proj/a/b", "proj", "proj/a"]
+
+
+def _http_error(status: int, msg: str) -> HttpError:
+    return HttpError(
+        httplib2.Response({"status": status}),
+        json.dumps({"error": {"message": msg}}).encode(),
+    )
+
+
+def test_create_label_rejected_leaf_creates_no_parents(settings: Settings) -> None:
+    def reject(**kwargs: Any) -> dict[str, Any]:
+        raise _http_error(400, "Invalid label color")
+
+    fake = _fake(**{"users.labels.create": reject})
+    text = call(
+        tool_server(settings, fake),
+        "create_label",
+        account="work",
+        name="proj/a/b",
+        color_background="#123456",
+        color_text="#ffffff",
+    )
+    assert text == "Gmail API error: HTTP 400: Invalid label color"
+    assert len(fake.calls_to("users.labels.create")) == 1
+
+
+def test_create_label_reports_a_failed_parent(settings: Settings) -> None:
+    def create(**kwargs: Any) -> dict[str, Any]:
+        if kwargs["body"]["name"] == "proj/a":
+            raise _http_error(500, "Backend Error")
+        return _echo_create(**kwargs)
+
+    fake = _fake(**{"users.labels.create": create})
+    text = call(
+        tool_server(settings, fake), "create_label", account="work", name="proj/a/b"
+    )
+    assert text == (
+        "Created label 'proj/a/b' (id id-proj/a/b). Creating parent proj/a failed: "
+        "HTTP 500: Backend Error. Created parent proj."
+    )
 
 
 def test_create_label_under_existing_parent_creates_only_child(

@@ -27,6 +27,9 @@ client. Things to know:
 - Permanent deletion takes explicit ids only, is capped per call, and
   returns an audit trail. Mailbox forwarding is deliberately not
   exposed.
+- The gates cover mail. Deleting a *label* (`delete_label`) is always
+  on: it needs only the base `modify` scope and removes no message, but
+  it does take the label off every message for good.
 - File access is limited to `~/.wx-gmail-mcp/downloads/` and
   `~/.wx-gmail-mcp/outbox/`.
 

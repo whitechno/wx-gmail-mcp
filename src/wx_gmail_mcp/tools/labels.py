@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import MCPServer
 
 from wx_gmail_mcp import gmail, labels
 from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.gmail import Runtime
 from wx_gmail_mcp.labels import LabelMap
-from wx_gmail_mcp.safety import register_tool
+from wx_gmail_mcp.safety import describe_http_error, register_tool
 
 
 def format_label(label: dict[str, Any], counts: bool) -> str:
@@ -24,16 +25,42 @@ def format_label(label: dict[str, Any], counts: bool) -> str:
     return line
 
 
-def _create_parents(svc: gmail.GmailService, lm: LabelMap, name: str) -> list[str]:
-    """Create the missing ancestors of a nested name; return their names."""
-    created = lm.missing_ancestors(name)
-    for parent in created:
-        gmail.create_label(svc, {"name": parent})
-    return created
+def _create_parents(svc: gmail.GmailService, lm: LabelMap, name: str) -> str:
+    """Create the missing ancestors of a nested name, after the label itself.
 
-
-def _parents_note(created: list[str]) -> str:
+    Gmail nests by name alone, so the order does not matter to it; doing
+    the label first means a rejected label leaves nothing behind. Returns
+    a note for the tool output.
+    """
+    missing = lm.missing_ancestors(name)
+    created: list[str] = []
+    for parent in missing:
+        try:
+            gmail.create_label(svc, {"name": parent})
+        except HttpError as e:
+            return f" Creating parent {parent} failed: {describe_http_error(e)}." + (
+                f" Created parent {', '.join(created)}." if created else ""
+            )
+        created.append(parent)
     return f" Also created parent {', '.join(created)}." if created else ""
+
+
+def _nested_note(svc: gmail.GmailService, lm: LabelMap, old: str, new: str) -> str:
+    """After renaming ``old`` to ``new``: where did its nested labels go?"""
+    if not lm.children(old):
+        return ""
+    after = LabelMap.fetch(svc)
+    left = [str(x["name"]) for x in after.children(old)]
+    moved = [str(x["name"]) for x in after.children(new)]
+    notes = []
+    if moved:
+        notes.append(f" Nested labels moved with it: {', '.join(moved)}.")
+    if left:
+        notes.append(
+            f" Nested labels kept the old path and need their own rename: "
+            f"{', '.join(left)}."
+        )
+    return "".join(notes)
 
 
 def _check_free(lm: LabelMap, name: str, except_id: str = "") -> None:
@@ -82,11 +109,11 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         svc = rt.service(account)
         lm = LabelMap.fetch(svc)
         _check_free(lm, body["name"])
-        parents = _create_parents(svc, lm, body["name"])
         label = gmail.create_label(svc, body)
+        note = _create_parents(svc, lm, body["name"])
         return (
             f"Created label '{label.get('name', body['name'])}' "
-            f"(id {label.get('id', '')}).{_parents_note(parents)}"
+            f"(id {label.get('id', '')}).{note}"
         )
 
     def update_label(
@@ -114,14 +141,17 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         lm = LabelMap.fetch(svc)
         target = lm.require_user_label(label)
         label_id = str(target["id"])
-        parents: list[str] = []
+        old_name = str(target.get("name", ""))
         if "name" in body:
             _check_free(lm, body["name"], except_id=label_id)
-            parents = _create_parents(svc, lm, body["name"])
         gmail.patch_label(svc, label_id, body)
+        note = ""
+        if "name" in body:
+            note = _create_parents(svc, lm, body["name"])
+            note += _nested_note(svc, lm, old_name, body["name"])
         return (
-            f"Updated label '{target.get('name', '')}' (id {label_id}): "
-            f"{labels.describe_body(body)}.{_parents_note(parents)}"
+            f"Updated label '{old_name}' (id {label_id}): "
+            f"{labels.describe_body(body)}.{note}"
         )
 
     def delete_label(account: str, label: str) -> str:
