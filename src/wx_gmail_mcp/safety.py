@@ -112,6 +112,7 @@ def write_download(
     flags = os.O_WRONLY | os.O_CREAT | (os.O_TRUNC if overwrite else os.O_EXCL)
     try:
         fd = os.open(path, flags, FILE_MODE)
+        os.fchmod(fd, FILE_MODE)  # an overwritten file keeps its old mode otherwise
     except FileExistsError:
         raise WxGmailError(
             f"'{name}' already exists in {settings.downloads_dir}. Pass "

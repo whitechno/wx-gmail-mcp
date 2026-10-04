@@ -6,6 +6,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
+from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import MCPServer
 
 from wx_gmail_mcp import gmail, mime, safety
@@ -92,9 +93,14 @@ def format_thread_message(labels: LabelMap, msg: dict[str, Any], max_body: int) 
     )
 
 
-def pick_attachment(atts: list[mime.Attachment], ref: str) -> mime.Attachment:
-    """The attachment named by id or file name; the only one if ``ref`` is
-    empty. Gmail attachment ids change between reads, so a name works too."""
+def pick_attachment(atts: list[mime.Attachment], ref: str) -> mime.Attachment | None:
+    """The attachment ``ref`` names by part number, attachment id or file
+    name; the only one if ``ref`` is empty.
+
+    Returns None when ``ref`` matches nothing: Gmail attachment ids change
+    between reads of a message, so the caller then tries ``ref`` as an id
+    from an earlier read, which ``attachments.get`` still accepts.
+    """
     if not atts:
         raise WxGmailError("The message has no attachments.")
     ref = ref.strip()
@@ -102,22 +108,33 @@ def pick_attachment(atts: list[mime.Attachment], ref: str) -> mime.Attachment:
         if len(atts) == 1:
             return atts[0]
         raise WxGmailError(
-            f"The message has {len(atts)} attachments; name one by id or file name."
+            f"The message has {len(atts)} attachments; pick one by part number "
+            "or file name."
         )
-    by_id = [a for a in atts if a.attachment_id == ref]
-    if by_id:
-        return by_id[0]
+    for a in atts:
+        if ref in (a.part_id, a.attachment_id):
+            return a
     by_name = [a for a in atts if a.filename.lower() == ref.lower()]
     if len(by_name) == 1:
         return by_name[0]
     if len(by_name) > 1:
         raise WxGmailError(
-            f"{len(by_name)} attachments are named '{ref}'; use the id instead."
+            f"{len(by_name)} attachments are named '{ref}'; use the part number."
         )
-    raise WxGmailError(
+    return None
+
+
+def no_such_attachment(atts: list[mime.Attachment], ref: str) -> WxGmailError:
+    return WxGmailError(
         f"No attachment '{ref}' on this message. Attachments: "
         + "; ".join(a.text() for a in atts)
     )
+
+
+def _match_by_size(atts: list[mime.Attachment], size: int) -> mime.Attachment | None:
+    """The one attachment of this size, to name a file fetched by a stale id."""
+    same = [a for a in atts if a.size == size]
+    return same[0] if len(same) == 1 else None
 
 
 def _check_max_results(max_results: int) -> None:
@@ -180,7 +197,8 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         out = []
         for t in hits:
             thread = gmail.get_thread(svc, str(t["id"]), "metadata", METADATA_HEADERS)
-            thread.setdefault("snippet", t.get("snippet", ""))
+            # threads.list documents the snippet; threads.get may omit it.
+            thread["snippet"] = t.get("snippet") or thread.get("snippet", "")
             out.append(format_thread_hit(labels, thread))
         if token := page.get("nextPageToken"):
             out.append(f"next_page_token: {token}")
@@ -207,8 +225,9 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         return "\n\n".join(format_thread_message(labels, m, cap) for m in messages)
 
     def list_attachments(account: str, message_id: str) -> str:
-        """List a message's attachments: file name, MIME type, size and the
-        attachment id to pass to download_attachment."""
+        """List a message's attachments: part number, file name, MIME type,
+        size and attachment id. Pass the part number or file name to
+        download_attachment (attachment ids can change between reads)."""
         msg = gmail.get_message(rt.service(account), message_id, "full")
         atts = mime.attachments(msg.get("payload", {}) or {})
         if not atts:
@@ -223,21 +242,28 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         overwrite: bool = False,
     ) -> str:
         """Save one attachment to the server's downloads directory and return
-        the path. `attachment` is an attachment id or file name from
-        list_attachments (optional when the message has exactly one).
+        the path. `attachment` is a part number, file name or attachment id
+        from list_attachments (optional when the message has exactly one).
         `filename` renames the saved file (relative; subfolders allowed)."""
         svc = rt.service(account)
         msg = gmail.get_message(svc, message_id, "full")
-        att = pick_attachment(
-            mime.attachments(msg.get("payload", {}) or {}), attachment
-        )
+        atts = mime.attachments(msg.get("payload", {}) or {})
+        ref = attachment.strip()
+        att = pick_attachment(atts, ref)
+        if att is not None:
+            payload = gmail.get_attachment(svc, message_id, att.attachment_id)
+        else:
+            # Not a current id, part or name: maybe an id from an earlier read.
+            try:
+                payload = gmail.get_attachment(svc, message_id, ref)
+            except HttpError:
+                raise no_such_attachment(atts, ref) from None
+            att = _match_by_size(atts, int(payload.get("size") or -1)) or (
+                mime.Attachment(ref, "", "application/octet-stream", 0)
+            )
+        data = mime.decode_attachment(str(payload.get("data", "")))
         name = filename.strip() or mime.safe_filename(
             att.filename, f"{message_id}-attachment.bin"
-        )
-        data = mime.decode_attachment(
-            str(
-                gmail.get_attachment(svc, message_id, att.attachment_id).get("data", "")
-            )
         )
         path = safety.write_download(rt.settings, name, data, overwrite)
         return f"Saved {path} ({len(data)} bytes, {att.mime_type})."

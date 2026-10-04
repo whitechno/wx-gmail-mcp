@@ -97,6 +97,7 @@ def test_read_message_full_output(settings: Settings) -> None:
     parts = [
         {"mimeType": "text/plain", "body": {"data": b64("Body text")}},
         {
+            "partId": "1",
             "mimeType": "application/pdf",
             "filename": "a.pdf",
             "body": {"attachmentId": "att-1", "size": 10},
@@ -119,7 +120,7 @@ def test_read_message_full_output(settings: Settings) -> None:
         "Subject: Test subject\n"
         "Labels: INBOX, wx-test/sub\n"
         "Attachments:\n"
-        "  - a.pdf (application/pdf, 10 bytes) id=att-1\n"
+        "  - part 1: a.pdf (application/pdf, 10 bytes) id=att-1\n"
         "\n"
         "Body text"
     )

@@ -93,15 +93,19 @@ def body_text(payload: dict[str, Any], max_body: int) -> str:
 
 @dataclass(frozen=True)
 class Attachment:
+    """One attachment part. ``part_id`` is stable for the message; Gmail's
+    ``attachment_id`` can change between reads of the same message."""
+
     attachment_id: str
     filename: str
     mime_type: str
     size: int
+    part_id: str = ""
 
     def text(self) -> str:
         return (
-            f"{self.filename or '(unnamed)'} ({self.mime_type}, {self.size} bytes) "
-            f"id={self.attachment_id}"
+            f"part {self.part_id}: {self.filename or '(unnamed)'} "
+            f"({self.mime_type}, {self.size} bytes) id={self.attachment_id}"
         )
 
 
@@ -141,6 +145,7 @@ def attachments(payload: dict[str, Any]) -> list[Attachment]:
                 filename=str(part.get("filename") or ""),
                 mime_type=str(part.get("mimeType") or "application/octet-stream"),
                 size=int(body.get("size") or 0),
+                part_id=str(part.get("partId") or ""),
             )
         )
     return found
