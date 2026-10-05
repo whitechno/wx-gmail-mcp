@@ -313,7 +313,7 @@ download_attachment(account="work", message_id="18f3a2b4c5d6e7f8", attachment="1
 ```
 
 ```
-Saved /home/you/.wx-gmail-mcp/downloads/invoice-4821.pdf (48213 bytes, application/pdf).
+Saved ~/.wx-gmail-mcp/downloads/invoice-4821.pdf (48213 bytes, application/pdf).
 ```
 
 An existing file is an error unless `overwrite=true`. File names are
@@ -715,7 +715,7 @@ create_draft(account="work", to="someone@example.com", subject="wx-test: report"
 ```
 
 ```
-Draft created. draft id=r-4556999337556817406 message id=18f3a2d5e6f7a8b9
+Draft created. draft id=r-1234567890123456789 message id=18f3a2d5e6f7a8b9
 ```
 
 Draft ids look like `r-<digits>`; the draft's message has its own id.
@@ -736,7 +736,7 @@ list_drafts(account="work")
 ```
 
 ```
-[draft r-4556999337556817406] message 18f3a2d5e6f7a8b9 | thread 18f3a2d5e6f7a8b9 | Mon, 05 Oct 2026 12:00:00 +0000
+[draft r-1234567890123456789] message 18f3a2d5e6f7a8b9 | thread 18f3a2d5e6f7a8b9 | Mon, 05 Oct 2026 12:00:00 +0000
   To: someone@example.com
   Subj: wx-test: report
 ```
@@ -756,11 +756,11 @@ present), attachments and body.
 | `max_body` | integer | 0 | Characters of body; 0 = server default |
 
 ```
-get_draft(account="work", draft_id="r-4556999337556817406")
+get_draft(account="work", draft_id="r-1234567890123456789")
 ```
 
 ```
-Draft id: r-4556999337556817406
+Draft id: r-1234567890123456789
 Message id: 18f3a2d5e6f7a8b9
 Thread id: 18f3a2d5e6f7a8b9
 Date: Mon, 05 Oct 2026 12:00:00 +0000
@@ -794,11 +794,11 @@ draft gets a new message id; the draft id and thread id stay.
 | `reply_to` | string | "" | Reply-To header |
 
 ```
-update_draft(account="work", draft_id="r-4556999337556817406", to="someone@example.com", subject="wx-test: report (v2)", body="Second version attached.", attachments=["report-v2.pdf"])
+update_draft(account="work", draft_id="r-1234567890123456789", to="someone@example.com", subject="wx-test: report (v2)", body="Second version attached.", attachments=["report-v2.pdf"])
 ```
 
 ```
-Draft updated. draft id=r-4556999337556817406 message id=18f3a2e1f2a3b4c5
+Draft updated. draft id=r-1234567890123456789 message id=18f3a2e1f2a3b4c5
 ```
 
 ### `delete_draft`
@@ -813,7 +813,7 @@ only the base scope and never touches sent or received mail.
 | `draft_ids` | list of strings | required | Up to 100 draft ids |
 
 ```
-delete_draft(account="work", draft_ids=["r-4556999337556817406"])
+delete_draft(account="work", draft_ids=["r-1234567890123456789"])
 ```
 
 ```
@@ -864,11 +864,11 @@ what went out.
 | `draft_id` | string | required | The draft to send |
 
 ```
-send_draft(account="work", draft_id="r-4556999337556817406")
+send_draft(account="work", draft_id="r-1234567890123456789")
 ```
 
 ```
-Sent draft r-4556999337556817406 (To: someone@example.com | Subj: wx-test: report). message id=18f3a2f9b0c1d2e3 thread id=18f3a2d5e6f7a8b9
+Sent draft r-1234567890123456789 (To: someone@example.com | Subj: wx-test: report). message id=18f3a2f9b0c1d2e3 thread id=18f3a2d5e6f7a8b9
 ```
 
 ### `reply`

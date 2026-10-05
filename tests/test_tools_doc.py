@@ -128,4 +128,4 @@ def test_tools_doc_examples_use_placeholders_only() -> None:
     assert addresses, "no example addresses?"
     domains = [a.rsplit("@", 1)[1].split(".") for a in addresses]
     assert all(d[-2:] == ["example", "com"] for d in domains), addresses
-    assert "/Users/" not in doc_text()
+    assert "/Users/" not in doc_text() and "/home/" not in doc_text()
