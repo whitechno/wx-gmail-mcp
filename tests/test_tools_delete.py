@@ -158,7 +158,10 @@ def test_require_trashed_refuses_mail_outside_trash(tmp_path: Path) -> None:
         )
     assert fake.calls_to("users.messages.batchDelete") == []
     one = call(mcp, "delete_permanently", account="work", ids=["m2"], dry_run=False)
-    assert one.startswith("Error: 1 message is not in Trash: m2.")
+    assert one == (
+        "Error: 1 message is not in Trash: m2. Trash it first, or pass "
+        "require_trashed=false to delete it anyway. Nothing was deleted."
+    )
 
 
 def test_require_trashed_false_deletes_mail_outside_trash(tmp_path: Path) -> None:
@@ -195,6 +198,26 @@ def test_cap_is_100_ids_before_any_call(tmp_path: Path) -> None:
     assert text.startswith("Permanently deleted 100 messages:")
     (batch,) = fake.calls_to("users.messages.batchDelete")
     assert batch["body"]["ids"] == ids
+
+
+def test_batch_delete_failure_keeps_the_audit_trail(tmp_path: Path) -> None:
+    def fail(**kwargs: Any) -> dict[str, Any]:
+        raise _http_error(500, "Backend Error")
+
+    fake = _messages(m1=message("m1", labels=TRASHED))
+    fake.responses["users.messages.batchDelete"] = fail
+    text = call(
+        _server(tmp_path, fake),
+        "delete_permanently",
+        account="work",
+        ids=["m1"],
+        dry_run=False,
+    )
+    assert text.splitlines() == [
+        "Nothing was deleted: the delete of 1 message failed with "
+        "HTTP 500: Backend Error. The items were:",
+        LINE_M1,
+    ]
 
 
 def test_unknown_id_fails_before_any_delete(tmp_path: Path) -> None:
@@ -268,8 +291,8 @@ def test_partially_trashed_thread_is_refused(tmp_path: Path) -> None:
         dry_run=False,
     )
     assert text == (
-        "Error: 1 thread is not entirely in Trash: t1. Trash them first, or pass "
-        "require_trashed=false to delete them anyway. Nothing was deleted."
+        "Error: 1 thread is not entirely in Trash: t1. Trash it first, or pass "
+        "require_trashed=false to delete it anyway. Nothing was deleted."
     )
     assert fake.calls_to("users.threads.delete") == []
 

@@ -116,11 +116,12 @@ def refuse_untrashed(not_trashed: list[str], kind: str) -> None:
     if not not_trashed:
         return
     where = "in Trash" if kind == "message" else "entirely in Trash"
-    verb = "is" if len(not_trashed) == 1 else "are"
+    one = len(not_trashed) == 1
+    verb, them = ("is", "it") if one else ("are", "them")
     raise WxGmailError(
         f"{plural(len(not_trashed), kind)} {verb} not {where}: "
-        f"{', '.join(not_trashed)}. Trash them first, or pass "
-        "require_trashed=false to delete them anyway. Nothing was deleted."
+        f"{', '.join(not_trashed)}. Trash {them} first, or pass "
+        f"require_trashed=false to delete {them} anyway. Nothing was deleted."
     )
 
 
@@ -159,7 +160,8 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         `require_trashed=false`. Each item's date, sender and subject are
         fetched first and returned as the audit trail. `dry_run=true` (the
         default) shows that trail and deletes nothing; run again with
-        `dry_run=false` to delete."""
+        `dry_run=false` to delete. A thread is deleted whole, including a
+        reply that arrives after the audit fetch."""
         items, k = prepare(ids, kind)
         svc = service(account)
         blocks: list[list[str]] = []
@@ -180,7 +182,14 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
                 ]
             )
         if k == "message":
-            gmail.batch_delete(svc, items)
+            try:
+                gmail.batch_delete(svc, items)
+            except Exception as e:
+                head = (
+                    f"Nothing was deleted: the delete of {what} failed with "
+                    f"{describe_error(e)}. The items were:"
+                )
+                return "\n".join([head, *lines])
             return "\n".join([f"Permanently deleted {what}:", *lines])
         done = 0
         try:
