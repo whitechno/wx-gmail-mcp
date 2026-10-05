@@ -96,7 +96,7 @@ registration (it registers the tools); accounts can differ.
 | `WX_GMAIL_ALLOW_SETTINGS=true` | filters, vacation responder, send-as and signature | `gmail.settings.basic` |
 | `WX_GMAIL_ALLOW_DELETE=true` | `trash`, `untrash`, `delete_permanently`, filter action "delete" | `https://mail.google.com/` |
 
-Only the exact value `true` turns a gate on. Tools of a gate refuse an
+Only the value `true` (any case) turns a gate on. Tools of a gate refuse an
 account that has not granted the gate's scope and name the re-auth
 command.
 

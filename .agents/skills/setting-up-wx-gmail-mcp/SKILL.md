@@ -19,11 +19,11 @@ Scripts are in this skill's `scripts/`; run them with `python3`.
 
 - If `wx-gmail-mcp` is installed: `wx-gmail-mcp --doctor` (with the gates
   from step 2 in the environment, once chosen). One line per check; `FAIL`
-  lines say what to fix. With no `FAIL` line and no `warn` on
-  `permissions` or an `account` (a `warn` on `gcloud login` does not
-  matter once the client JSON is in place), resume at the first step
-  still open: step 6 if every `client` line says `not registered`,
-  else step 7. To **add an account** to a working
+  lines say what to fix. With no `FAIL` line and no `warn` line other
+  than `gcloud login` (which stops mattering once the client JSON is in
+  place), resume at the first step still open: step 6 if every `client`
+  line says `not registered`, else step 7. A `warn accounts: none`
+  means step 5. To **add an account** to a working
   install: add it as a test user (step 3.2, while in Testing), then
   step 5 for it. To **add a gate**: step 5 again for each account that
   gets it, then step 6 with the new env.
