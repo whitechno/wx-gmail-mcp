@@ -1,7 +1,7 @@
 # wx-gmail-mcp
 
 A self-hosted MCP server that gives your AI agent (Claude Code, Codex,
-Gemini CLI, Cursor, any MCP client) controlled access to *several* Gmail
+Antigravity, Cursor, any MCP client) controlled access to *several* Gmail
 accounts at once: mail, labels, filters, drafts and bulk operations, with
 sending, settings and deletion behind opt-in gates.
 

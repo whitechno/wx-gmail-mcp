@@ -116,16 +116,16 @@ the project uses [Semantic Versioning](https://semver.org/).
   send scope), both with `cc`, `bcc`, `html`, `reply_to` and
   `attachments` read from `~/.wx-gmail-mcp/outbox/`.
 - `docs/CLIENTS.md`: registration steps for Claude Code, Claude Desktop,
-  Codex CLI, Gemini CLI, Antigravity and Cursor, each checked against
+  Codex CLI, Antigravity and Cursor, each checked against
   the client's documentation, and a compatibility matrix from live runs
   (Claude Code, Codex CLI and Antigravity CLI accepted all 41 tools with
   no schema, name or rendering issue).
 - CLI: `--print-config <client>` prints a ready-to-paste registration
   block for `claude-code` (a `claude mcp add` command), `claude-desktop`,
-  `codex` (TOML for `config.toml`), `gemini`, `antigravity` and `cursor`
-  (JSON), with the absolute path of the running executable, the gates
-  that are on in the current environment and the home override, if any;
-  a line on stderr says where the block goes. Nothing secret is read or
+  `codex` (TOML for `config.toml`), `antigravity` and `cursor` (JSON),
+  with the absolute path of the running executable, the gates that are
+  on in the current environment and the home override, if any; a line
+  on stderr says where the block goes. Nothing secret is read or
   printed.
 - CLI: `--auth <alias> --email <address>` authorizes an account in the
   browser; `--list` shows accounts, token health, granted scopes and

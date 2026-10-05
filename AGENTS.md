@@ -1,7 +1,7 @@
 # wx-gmail-mcp: contributor and agent conventions
 
 This file is read by every agent harness (Claude Code via `CLAUDE.md`,
-Codex, Gemini CLI and others read it directly) and by human contributors.
+Codex, Antigravity and others read it directly) and by human contributors.
 It holds conventions only, not implementation notes.
 
 If `AGENTS.local.md` exists at the repo root, read it before any work

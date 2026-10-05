@@ -74,7 +74,7 @@ def test_claude_code_quotes_paths_with_spaces() -> None:
     assert shlex.split(text)[-1] == cmd[0]
 
 
-@pytest.mark.parametrize("name", ["claude-desktop", "gemini", "antigravity", "cursor"])
+@pytest.mark.parametrize("name", ["claude-desktop", "antigravity", "cursor"])
 def test_json_clients_share_the_mcp_servers_shape(name: str) -> None:
     block = clients.harness(name).render([*CMD, "-m", "x"], ENV)
     entry = json.loads(block)["mcpServers"]["wx-gmail-mcp"]

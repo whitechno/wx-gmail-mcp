@@ -33,9 +33,9 @@ wins.
    WX_GMAIL_ALLOW_SETTINGS=true wx-gmail-mcp --print-config codex
    ```
 
-   Clients: `claude-code`, `claude-desktop`, `codex`, `gemini`,
-   `antigravity`, `cursor`. The block goes to stdout; one line on stderr
-   says where to paste it. Nothing secret is read or printed.
+   Clients: `claude-code`, `claude-desktop`, `codex`, `antigravity`,
+   `cursor`. The block goes to stdout; one line on stderr says where to
+   paste it. Nothing secret is read or printed.
 
    `uvx wx-gmail-mcp --print-config ...` works too, but the path it
    prints lies in uv's cache, which a prune can remove; the command
@@ -127,37 +127,6 @@ list if you want fewer than the gates give.
 
 Source: [Model Context Protocol (Codex)](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
 
-## Gemini CLI
-
-User scope is `~/.gemini/settings.json`; project scope is
-`.gemini/settings.json`:
-
-```bash
-gemini mcp add -s user -e WX_GMAIL_ALLOW_SETTINGS=true \
-  wx-gmail-mcp ~/.local/bin/wx-gmail-mcp
-```
-
-```json
-{
-  "mcpServers": {
-    "wx-gmail-mcp": {
-      "command": "/path/to/wx-gmail-mcp",
-      "args": [],
-      "env": {
-        "WX_GMAIL_ALLOW_SETTINGS": "true"
-      }
-    }
-  }
-}
-```
-
-`gemini mcp list` shows connection status. Gemini CLI truncates tool
-names above 63 characters; the longest here, `wx-gmail-mcp__modify_thread_labels`,
-is 34. `includeTools` / `excludeTools` in the same block filter the
-list.
-
-Source: [MCP servers with the Gemini CLI](https://geminicli.com/docs/tools/mcp-server/).
-
 ## Antigravity (agy CLI and IDE)
 
 The CLI, the IDE and the SDK share one global file,
@@ -234,12 +203,11 @@ only. Driven non-interactively where the client allows it.
 | Claude Code | 2.1.289 | 2026-10-05 | 41 of 41 | no complaints | fine | verbatim | Local-scope registration. Claude Code starts the server once per process and keeps it across `/clear`, so a long-running process kept an older 27-tool list after the server gained tools; restart Claude Code after upgrading the server. |
 | Codex CLI | 0.160.0 | 2026-10-05 | 41 of 41 | no complaints | fine | verbatim | `codex exec`. With the default 10 s `startup_timeout_sec` one run saw no tools; 30 s fixed it. Codex loads MCP tool metadata through its own discovery step, whose first listing of 41 tools was truncated on its side; the calls were unaffected. No approval prompts in `exec` mode. |
 | Antigravity CLI | 1.2.14 | 2026-10-05 | 41 of 41 | no complaints | fine | verbatim | `agy --print`. No permission prompts for MCP tools in print mode. |
-| Gemini CLI | - | not run | - | - | - | - | Registration above follows the Gemini CLI docs; not exercised yet. |
 | Claude Desktop | - | not run | - | - | - | - | Planned for the release candidate. |
 | Cursor | - | not run | - | - | - | - | - |
 
 "Tools accepted" is the number the client listed out of the 41 the
 server registers with all three gates on (25 with none). No client
 needed a tool allowlist; gates are the first answer to a client that
-caps tools, and `enabled_tools` (Codex) or `includeTools` (Gemini CLI)
-are the client-side answer.
+caps tools, and `enabled_tools` / `disabled_tools` (Codex) are the
+client-side answer.
