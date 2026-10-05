@@ -230,7 +230,7 @@ only. Driven non-interactively where the client allows it.
 
 | Client | Version | Tested | Tools accepted | Schema | Names | Results | Notes |
 |---|---|---|---|---|---|---|---|
-| Claude Code | 2.1.289 | 2026-10-05 | 41 of 41 | no complaints | fine | verbatim | Local-scope registration. One session listed an older 27-tool set after the server had gained tools; restart the client (or `/mcp` reconnect) after upgrading the server. |
+| Claude Code | 2.1.289 | 2026-10-05 | 41 of 41 | no complaints | fine | verbatim | Local-scope registration. Claude Code starts the server once per process and keeps it across `/clear`, so a long-running process kept an older 27-tool list after the server gained tools; restart Claude Code after upgrading the server. |
 | Codex CLI | 0.160.0 | 2026-10-05 | 41 of 41 | no complaints | fine | verbatim | `codex exec`. With the default 10 s `startup_timeout_sec` one run saw no tools; 30 s fixed it. Codex loads MCP tool metadata through its own discovery step, whose first listing of 41 tools was truncated on its side; the calls were unaffected. No approval prompts in `exec` mode. |
 | Antigravity CLI | 1.2.14 | 2026-10-05 | 41 of 41 | no complaints | fine | verbatim | `agy --print`. No permission prompts for MCP tools in print mode. |
 | Gemini CLI | - | not run | - | - | - | - | Registration above follows the Gemini CLI docs; not exercised yet. |
