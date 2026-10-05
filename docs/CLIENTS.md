@@ -90,8 +90,9 @@ app after saving.
 }
 ```
 
-Logs: `~/Library/Logs/Claude/mcp-server-wx-gmail-mcp.log` holds the
-server's stderr.
+Logs: `~/Library/Logs/Claude/mcp-server-wx-gmail-mcp.log` (macOS) or
+`%APPDATA%\Claude\logs\mcp-server-wx-gmail-mcp.log` (Windows) holds
+the server's stderr.
 
 Source: [Connect to local MCP servers](https://modelcontextprotocol.io/docs/develop/connect-local-servers)
 (Claude Desktop is the example client).
