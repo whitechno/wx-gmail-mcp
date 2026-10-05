@@ -9,7 +9,9 @@ import mimetypes
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from email import message_from_bytes, policy
 from email.message import EmailMessage
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -91,6 +93,84 @@ def body_text(payload: dict[str, Any], max_body: int) -> str:
     return text
 
 
+_BLOCK_TAGS = frozenset(
+    {
+        "p",
+        "div",
+        "br",
+        "li",
+        "tr",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "blockquote",
+        "pre",
+        "table",
+        "ul",
+        "ol",
+        "hr",
+        "section",
+        "article",
+        "header",
+        "footer",
+    }
+)
+_SKIP_TAGS = frozenset({"script", "style", "head", "title"})
+
+
+class _TextExtractor(HTMLParser):
+    """Visible text of an HTML body: block tags become line breaks, script
+    and style content is dropped, entities are decoded."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self._skip = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in _SKIP_TAGS:
+            self._skip += 1
+        elif tag in _BLOCK_TAGS:
+            self.parts.append("\n- " if tag == "li" else "\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in _SKIP_TAGS:
+            self._skip = max(0, self._skip - 1)
+        elif tag in _BLOCK_TAGS and tag not in ("br", "li"):
+            self.parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if not self._skip:
+            self.parts.append(data)
+
+
+def html_to_text(html: str) -> str:
+    """A plain-text rendering of HTML, for quoting an HTML-only original."""
+    extractor = _TextExtractor()
+    extractor.feed(html)
+    extractor.close()
+    lines = [
+        re.sub(r"[ \t\xa0]+", " ", line).strip()
+        for line in "".join(extractor.parts).splitlines()
+    ]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
+def plain_text(payload: dict[str, Any], max_chars: int) -> tuple[str, bool]:
+    """The original's text for outgoing mail: the text/plain part, else the
+    HTML part rendered as text. Returns the text and whether it was cut."""
+    text = _first_body(payload, "text/plain")
+    if text is None:
+        html = _first_body(payload, "text/html")
+        text = html_to_text(html) if html else ""
+    if len(text) > max_chars:
+        return text[:max_chars], True
+    return text, False
+
+
 @dataclass(frozen=True)
 class Attachment:
     """One attachment part. ``part_id`` is stable for the message; Gmail's
@@ -110,7 +190,8 @@ class Attachment:
 
 
 def decode_attachment(data: str) -> bytes:
-    """Decode the base64url ``data`` of ``attachments.get``."""
+    """Decode base64url ``data`` from ``attachments.get`` or a ``raw``
+    message."""
     try:
         return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
     except (binascii.Error, ValueError) as e:
@@ -174,6 +255,31 @@ def attachment_type(filename: str) -> tuple[str, str]:
     return maintype, subtype
 
 
+@dataclass(frozen=True)
+class Blob:
+    """An attachment held in memory: a re-attached original attachment, or
+    a whole message (``message/rfc822``) when forwarding as attachment."""
+
+    filename: str
+    maintype: str
+    subtype: str
+    data: bytes
+
+
+def _attach_blob(msg: EmailMessage, blob: Blob) -> None:
+    if (blob.maintype, blob.subtype) == ("message", "rfc822"):
+        # A message part is nested, not base64-encoded (RFC 2046 §5.2.1).
+        inner = message_from_bytes(blob.data, policy=policy.default)
+        msg.add_attachment(inner, filename=blob.filename)
+        return
+    msg.add_attachment(
+        blob.data,
+        maintype=blob.maintype,
+        subtype=blob.subtype,
+        filename=blob.filename,
+    )
+
+
 def build_message(
     *,
     to: str,
@@ -183,6 +289,7 @@ def build_message(
     bcc: str = "",
     html: str = "",
     attachments: Sequence[Path] = (),
+    blobs: Sequence[Blob] = (),
     reply_to: str = "",
     in_reply_to: str = "",
     references: str = "",
@@ -191,7 +298,8 @@ def build_message(
 
     Gmail sets ``From`` to the authenticated account. ``html`` adds a
     text/html alternative next to the plain ``body``. ``attachments`` are
-    already-validated paths (see ``safety.outbox_path``).
+    already-validated paths (see ``safety.outbox_path``); ``blobs`` are
+    in-memory attachments added after them.
     """
     to = _require(to, "to")
     if not body and not html:
@@ -217,4 +325,6 @@ def build_message(
         msg.add_attachment(
             path.read_bytes(), maintype=maintype, subtype=subtype, filename=path.name
         )
+    for blob in blobs:
+        _attach_blob(msg, blob)
     return base64.urlsafe_b64encode(msg.as_bytes()).decode()

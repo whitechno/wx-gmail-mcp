@@ -8,6 +8,16 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `reply` and `forward`, registered only with `WX_GMAIL_ALLOW_SENDING=true`
+  and only usable by accounts that granted the send scope. Both stay in
+  the original's conversation (Gmail thread id plus `In-Reply-To` and
+  `References`) and prefix the subject with `Re:` or `Fwd:`. A reply goes
+  to Reply-To or From, or to the original recipients when the account
+  sent it; `reply_all` copies the others minus the account itself; the
+  original text is quoted by default. A forward carries the original
+  text under a forwarded-message header with its attachments re-attached,
+  or, with `as_attachment`, the complete original as a `message/rfc822`
+  file. Both take outbox attachments.
 - Draft management, always on: `list_drafts` (newest first, Gmail query
   syntax, paged), `get_draft` (headers, attachments, body),
   `update_draft` (replaces the content with the same fields as
