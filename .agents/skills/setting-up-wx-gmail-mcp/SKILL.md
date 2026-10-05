@@ -21,7 +21,10 @@ Scripts are in this skill's `scripts/`; run them with `python3`.
   from step 2 in the environment, once chosen). One line per check; `FAIL`
   lines say what to fix. With no `FAIL` or `warn` line, resume at the
   first step still open: step 6 if every `client` line says
-  `not registered`, else step 7.
+  `not registered`, else step 7. To **add an account** to a working
+  install: add it as a test user (step 3.2, while in Testing), then
+  step 5 for it. To **add a gate**: step 5 again for each account that
+  gets it, then step 6 with the new env.
 - If not: `python3 scripts/prereqs.py`, then install:
   `uv tool install git+https://github.com/whitechno/wx-gmail-mcp`
   (needs `uv`; stop and ask before installing `uv` or anything else).

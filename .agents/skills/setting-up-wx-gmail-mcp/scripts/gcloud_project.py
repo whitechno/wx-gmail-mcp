@@ -27,6 +27,7 @@ CONSOLE = "https://console.cloud.google.com"
 def console_urls(project: str) -> dict[str, str]:
     q = f"?project={project}"
     return {
+        "overview (Get started wizard)": f"{CONSOLE}/auth/overview{q}",
         "branding (app name, emails)": f"{CONSOLE}/auth/branding{q}",
         "audience (user type, test users)": f"{CONSOLE}/auth/audience{q}",
         "clients (create the Desktop app client)": f"{CONSOLE}/auth/clients{q}",

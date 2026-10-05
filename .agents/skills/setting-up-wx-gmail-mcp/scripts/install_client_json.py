@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Move a downloaded OAuth client JSON into the wx-gmail-mcp home. Idempotent.
 
-    install_client_json.py              newest client_secret_*.json in ~/Downloads
+    install_client_json.py              newest client_secret*.json in ~/Downloads
     install_client_json.py PATH         that file
     install_client_json.py --check      report the installed file; fixes its modes
 
