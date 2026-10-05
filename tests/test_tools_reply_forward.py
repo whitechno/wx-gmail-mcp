@@ -178,9 +178,9 @@ def test_reply_cc_trailing_comma_kept_and_junk_refused(tmp_path: Path) -> None:
     _, msg = _sent(fake)
     assert msg["Cc"] == "dave@example.com"
     text = call(
-        mcp, "reply", account="work", message_id="m1", body="x", cc="a@x.org, <<<"
+        mcp, "reply", account="work", message_id="m1", body="x", cc="a@example.com, <<<"
     )
-    assert text == "Error: cc could not be parsed as addresses: 'a@x.org, <<<'."
+    assert text == "Error: cc could not be parsed as addresses: 'a@example.com, <<<'."
     assert len(fake.calls_to("users.messages.send")) == 1
 
 
@@ -217,7 +217,7 @@ def test_forward_quotes_an_out_of_line_body(tmp_path: Path) -> None:
         "forward",
         account="work",
         message_id="m1",
-        to="d@x.org",
+        to="d@example.com",
     )
     assert [c["id"] for c in fake.calls_to("users.messages.attachments.get")] == [
         "body1"

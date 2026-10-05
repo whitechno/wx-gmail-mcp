@@ -36,8 +36,9 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         reply_to: str = "",
     ) -> str:
         """Send an email from `account` immediately; there is no confirmation
-        step. `html` adds an HTML alternative to the plain `body`;
-        `attachments` are file names inside the server's outbox directory."""
+        step. `html` adds an HTML alternative to the plain `body` (or is the
+        whole body when `body` is empty); `attachments` are file names inside
+        the server's outbox directory."""
         svc = service(account)
         data = compose.build(
             rt.settings,

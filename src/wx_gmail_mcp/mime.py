@@ -76,11 +76,8 @@ def walk(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return parts
 
 
-_walk = walk
-
-
 def _first_body(payload: dict[str, Any], mime_prefix: str) -> str | None:
-    for part in _walk(payload):
+    for part in walk(payload):
         if part.get("filename"):
             continue  # an inlined text attachment is not the body
         if str(part.get("mimeType", "")).startswith(mime_prefix):
@@ -221,7 +218,7 @@ def safe_filename(name: str, fallback: str) -> str:
 def attachments(payload: dict[str, Any]) -> list[Attachment]:
     """Parts that carry an attachment id (Gmail stores them separately)."""
     found: list[Attachment] = []
-    for part in _walk(payload):
+    for part in walk(payload):
         body = part.get("body") or {}
         attachment_id = body.get("attachmentId")
         if not attachment_id:

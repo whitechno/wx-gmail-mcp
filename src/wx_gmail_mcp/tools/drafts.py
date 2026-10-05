@@ -101,8 +101,9 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         reply_to: str = "",
     ) -> str:
         """Create a draft (nothing is sent). `html` adds an HTML alternative
-        to the plain `body`; `attachments` are file names inside the server's
-        outbox directory. Returns the draft id and message id."""
+        to the plain `body` (or is the whole body when `body` is empty);
+        `attachments` are file names inside the server's outbox directory.
+        Returns the draft id and message id."""
         data = compose.build(
             rt.settings,
             to=to,
