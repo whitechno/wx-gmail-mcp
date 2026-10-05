@@ -1,4 +1,5 @@
-"""Shared input handling for the draft and send tools."""
+"""Shared input handling for the draft and send tools: resolve outbox
+attachments, then hand the fields to ``mime.build_message``."""
 
 from __future__ import annotations
 
@@ -19,6 +20,8 @@ def build_raw(
     html: str,
     attachments: Sequence[str],
     reply_to: str,
+    in_reply_to: str = "",
+    references: str = "",
 ) -> str:
     """Resolve outbox attachments, then build the raw message."""
     paths = [safety.outbox_path(settings, name) for name in attachments if name]
@@ -31,4 +34,6 @@ def build_raw(
         html=html,
         attachments=paths,
         reply_to=reply_to,
+        in_reply_to=in_reply_to,
+        references=references,
     )

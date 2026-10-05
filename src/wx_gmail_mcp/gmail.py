@@ -239,9 +239,56 @@ def send_raw(svc: GmailService, raw: str) -> dict[str, Any]:
     return svc.users().messages().send(userId="me", body={"raw": raw}).execute()
 
 
-def create_draft(svc: GmailService, raw: str) -> dict[str, Any]:
-    body = {"message": {"raw": raw}}
+def _draft_body(raw: str, thread_id: str) -> dict[str, Any]:
+    message: dict[str, Any] = {"raw": raw}
+    if thread_id:
+        message["threadId"] = thread_id
+    return {"message": message}
+
+
+def create_draft(svc: GmailService, raw: str, thread_id: str = "") -> dict[str, Any]:
+    body = _draft_body(raw, thread_id)
     return svc.users().drafts().create(userId="me", body=body).execute()
+
+
+def list_drafts(
+    svc: GmailService, query: str, max_results: int, page_token: str = ""
+) -> dict[str, Any]:
+    """One page of ``drafts.list``: ``drafts`` (ids plus message id and
+    thread id) and ``nextPageToken``."""
+    kwargs: dict[str, Any] = {
+        "userId": "me",
+        "maxResults": min(max_results, LIST_PAGE_LIMIT),
+    }
+    if query:
+        kwargs["q"] = query
+    if page_token:
+        kwargs["pageToken"] = page_token
+    return svc.users().drafts().list(**kwargs).execute()
+
+
+def get_draft(svc: GmailService, draft_id: str, fmt: str = "full") -> dict[str, Any]:
+    """``drafts.get``: the draft id and its message in the given format."""
+    return svc.users().drafts().get(userId="me", id=draft_id, format=fmt).execute()
+
+
+def update_draft(
+    svc: GmailService, draft_id: str, raw: str, thread_id: str = ""
+) -> dict[str, Any]:
+    """``drafts.update``: replaces the draft's message entirely."""
+    body = _draft_body(raw, thread_id)
+    return svc.users().drafts().update(userId="me", id=draft_id, body=body).execute()
+
+
+def delete_draft(svc: GmailService, draft_id: str) -> None:
+    """``drafts.delete``: immediate and permanent, no Trash step."""
+    svc.users().drafts().delete(userId="me", id=draft_id).execute()
+
+
+def send_draft(svc: GmailService, draft_id: str) -> dict[str, Any]:
+    """``drafts.send``: sends the draft as stored and removes it."""
+    body = {"id": draft_id}
+    return svc.users().drafts().send(userId="me", body=body).execute()
 
 
 def list_filters(svc: GmailService) -> list[dict[str, Any]]:
