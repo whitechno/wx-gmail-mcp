@@ -138,17 +138,16 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         return rt.service(account)
 
     def trash(account: str, ids: Sequence[str], kind: str = "message") -> str:
-        """Move messages (default) or whole threads (`kind='thread'`) to Trash,
-        where Gmail purges them after 30 days. Up to 100 ids per call, one
-        API call each. Reversible with untrash."""
+        """Move messages (default) or threads (`kind='thread'`) to Trash
+        (purged by Gmail after 30 days). Up to 100 ids per call; reversible
+        with untrash."""
         items, k = prepare(ids, kind)
         return for_each(service(account), items, k, "trash")
 
     def untrash(account: str, ids: Sequence[str], kind: str = "message") -> str:
-        """Move messages (default) or whole threads (`kind='thread'`) out of
-        Trash, back to their other labels but not to Inbox (add INBOX with
-        modify_labels if wanted). Up to 100 ids per call, one API call
-        each."""
+        """Move messages (default) or threads (`kind='thread'`) out of Trash,
+        back to their other labels but not to Inbox (add INBOX with
+        modify_labels). Up to 100 ids per call."""
         items, k = prepare(ids, kind)
         return for_each(service(account), items, k, "untrash")
 
@@ -159,13 +158,11 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         require_trashed: bool = True,
         dry_run: bool = True,
     ) -> str:
-        """Permanently delete messages (default) or whole threads
-        (`kind='thread'`) by explicit id, up to 100 per call. There is no
-        undo and no query form. Only mail already in Trash is accepted unless
-        `require_trashed=false`. Each item's date, sender and subject are
-        fetched first and returned as the audit trail. `dry_run=true` (the
-        default) shows that trail and deletes nothing; run again with
-        `dry_run=false` to delete."""
+        """Permanently delete messages (default) or threads (`kind='thread'`)
+        by explicit id, up to 100; no undo, no query form. Refuses mail
+        outside Trash unless `require_trashed=false`. Fetches each item's
+        date, sender and subject first as the audit trail. `dry_run=true`
+        (default) shows the trail and deletes nothing."""
         items, k = prepare(ids, kind)
         svc = service(account)
         if k == "message":

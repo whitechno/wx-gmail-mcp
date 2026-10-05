@@ -43,15 +43,12 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         domain_only: bool = False,
         timezone: str = "",
     ) -> str:
-        """Replace the vacation responder. Gmail has no partial update: every
-        field left out is cleared, so get_vacation first and pass what must
-        stay. `enabled` turns replies on or off; the message is `body`
-        (plain) or `html` (Gmail keeps only `html` when both are given),
-        required when enabled. `start_date` and
-        `end_date` (YYYY-MM-DD) are the first and last day, inclusive, at
-        midnight in the machine's zone or the IANA `timezone`; without them
-        the responder runs until turned off. `contacts_only` and
-        `domain_only` (Google Workspace) limit who gets a reply."""
+        """Replace the whole vacation responder (Gmail has no partial update:
+        fields left out are cleared, so get_vacation first). An enabled
+        responder needs `body` or `html` (Gmail keeps only `html` if both).
+        `start_date`/`end_date` (YYYY-MM-DD) are the first and last day in
+        the machine's zone or `timezone`; none means until turned off.
+        `contacts_only`/`domain_only` limit who gets a reply."""
         resource = vacation.body(
             enabled,
             subject,
@@ -82,11 +79,10 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         return "\n".join([head, *(sendas.text(i) for i in identities)])
 
     def set_signature(account: str, signature: str, send_as_email: str = "") -> str:
-        """Set the signature of one send-as identity: the primary address
-        unless `send_as_email` names an alias from list_send_as (Gmail lets
-        only Workspace service accounts change an alias, so expect a
-        refusal on a personal account). `signature` is HTML (Gmail sanitizes
-        it); an empty string removes it. Nothing else changes."""
+        """Set one send-as identity's signature (HTML; empty removes it): the
+        primary unless `send_as_email` names an alias from list_send_as
+        (Gmail refuses alias changes on personal accounts). Nothing else
+        changes."""
         svc = service(account)
         identity = sendas.find(gmail.list_send_as(svc), send_as_email)
         target = sendas.address(identity)

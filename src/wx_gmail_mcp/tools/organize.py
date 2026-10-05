@@ -57,9 +57,8 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         add: Sequence[str] = (),
         remove: Sequence[str] = (),
     ) -> str:
-        """Add and/or remove labels (names or ids) on a list of messages, e.g.
-        add=['STARRED'] or remove=['INBOX']. Up to 1000 ids per call. Never
-        adds TRASH or SPAM; that is the trash tools' job."""
+        """Add and/or remove labels (names or ids) on up to 1000 messages.
+        Never adds TRASH or SPAM; that is the trash tools' job."""
         ids = require_ids(list(message_ids))
         svc = rt.service(account)
         labels = LabelMap.fetch(svc)
@@ -124,11 +123,9 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         limit: int = bulk.DEFAULT_LIMIT,
     ) -> str:
         """Add and/or remove labels (names or ids) on every message matching
-        a Gmail query (Spam and Trash only if the query names them, e.g.
-        'in:trash'). `dry_run=true` (the default) only counts the matches
-        and shows a 5-message sample; run again with `dry_run=false` to
-        apply. Fails if more than `limit` messages match (default 5000).
-        Never adds TRASH or SPAM."""
+        a Gmail query (Spam and Trash only if the query names them).
+        `dry_run=true` (default) counts the matches with a 5-message sample;
+        fails above `limit` (default 5000). Never adds TRASH or SPAM."""
         svc = rt.service(account)
         labels = LabelMap.fetch(svc)
         add_ids, remove_ids = resolve_changes(labels, add, remove, "modify_by_query")

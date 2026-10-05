@@ -150,10 +150,9 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         page_token: str = "",
         include_spam_trash: bool = False,
     ) -> str:
-        """Search one account with Gmail query syntax, e.g.
-        'from:someone@example.com newer_than:30d is:unread'. Returns per hit:
-        message id, date, thread id, from, subject, labels, snippet, and a
-        next_page_token line when more pages exist (pass it as page_token)."""
+        """Search one account with Gmail query syntax. Per hit: message id,
+        date, thread id, from, subject, labels, snippet; a next_page_token line
+        when more pages exist (pass it as page_token)."""
         _check_max_results(max_results)
         svc = rt.service(account)
         page = gmail.list_messages(
@@ -181,10 +180,9 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         page_token: str = "",
         include_spam_trash: bool = False,
     ) -> str:
-        """Search conversations instead of messages (same query syntax as
-        search). Returns per thread: thread id, message count, the last
-        message's date, from and subject, the labels in the thread, a
-        snippet, and a next_page_token line when more pages exist."""
+        """Search conversations (same query syntax as search). Per thread:
+        thread id, message count, the last message's date, from and subject,
+        labels, snippet; a next_page_token line when more pages exist."""
         _check_max_results(max_results)
         svc = rt.service(account)
         page = gmail.list_threads(
@@ -226,8 +224,8 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
 
     def list_attachments(account: str, message_id: str) -> str:
         """List a message's attachments: part number, file name, MIME type,
-        size and attachment id. Pass the part number or file name to
-        download_attachment (attachment ids can change between reads)."""
+        size, attachment id. Use the part number or file name with
+        download_attachment (ids change between reads)."""
         msg = gmail.get_message(rt.service(account), message_id, "full")
         atts = mime.attachments(msg.get("payload", {}) or {})
         if not atts:
@@ -243,8 +241,8 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
     ) -> str:
         """Save one attachment to the server's downloads directory and return
         the path. `attachment` is a part number, file name or attachment id
-        from list_attachments (optional when the message has exactly one).
-        `filename` renames the saved file (relative; subfolders allowed)."""
+        (optional when there is exactly one); `filename` renames the saved
+        file (relative, subfolders allowed)."""
         svc = rt.service(account)
         msg = gmail.get_message(svc, message_id, "full")
         atts = mime.attachments(msg.get("payload", {}) or {})

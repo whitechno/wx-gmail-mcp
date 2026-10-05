@@ -192,19 +192,15 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         apply_limit: int = bulk.DEFAULT_LIMIT,
         dry_run: bool = True,
     ) -> str:
-        """Create a mail filter. Criteria (at least one): `from_`, `to`,
-        `subject`, `query` (Gmail search), `negated_query`, `has_attachment`,
-        `exclude_chats`, `size` in bytes with `size_comparison` larger|smaller.
-        Actions (at least one): `add_labels`/`remove_labels` by name or id
-        (`create_missing_labels=true` creates unknown names), and the
-        shortcuts `skip_inbox`, `mark_read`, `star`, `always_important`,
-        `never_important`, `never_spam`, `category`
-        (personal|social|promotions|updates|forums) and `delete` (to Trash;
-        only with WX_GMAIL_ALLOW_DELETE). A filter affects future mail;
-        `apply=true` also relabels existing matches, message by message,
-        Spam and Trash excluded, failing above `apply_limit` (default 5000).
-        `dry_run=true` (the default) shows the filter and the matches and
-        changes nothing."""
+        """Create a mail filter from criteria (`from_`, `to`, `subject`,
+        `query`, `negated_query`, `has_attachment`, `exclude_chats`, `size`
+        in bytes) and actions (`add_labels`/`remove_labels` by name or id,
+        `create_missing_labels`, the shortcuts `skip_inbox`, `mark_read`,
+        `star`, `always_important`, `never_important`, `never_spam`,
+        `category`, and `delete` only with WX_GMAIL_ALLOW_DELETE). Future
+        mail only unless `apply=true`, which also relabels existing matches
+        up to `apply_limit`. `dry_run=true` (default) previews, changes
+        nothing."""
         req = FilterRequest(
             from_=from_,
             to=to,
@@ -293,11 +289,10 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         apply_limit: int = bulk.DEFAULT_LIMIT,
         dry_run: bool = True,
     ) -> str:
-        """Replace filter `filter_id` with a new one described in full by the
-        same flags as create_filter (nothing is inherited from the old
-        filter). Gmail has no filter update, so the new filter is created,
-        then the old one deleted, then `apply` runs if asked. `dry_run=true`
-        (the default) shows both filters and changes nothing."""
+        """Replace filter `filter_id` with a new one built from the same flags
+        as create_filter (nothing is inherited). Gmail has no filter update:
+        the new filter is created, then the old one deleted, then `apply`
+        runs if asked. `dry_run=true` (default) shows both, changes nothing."""
         req = FilterRequest(
             from_=from_,
             to=to,
