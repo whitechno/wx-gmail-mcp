@@ -51,6 +51,8 @@ SETTINGS: set[str] = {
     "replace_filter",
     "get_vacation",
     "set_vacation",
+    "list_send_as",
+    "set_signature",
 }
 DELETE: set[str] = {"trash", "untrash", "delete_permanently"}
 

@@ -8,6 +8,15 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `list_send_as` and `set_signature`, registered only with
+  `WX_GMAIL_ALLOW_SETTINGS=true` and only usable by accounts that granted
+  the `gmail.settings.basic` scope. `list_send_as` shows the primary
+  address and every alias with display name, reply-to, flags,
+  verification status and the signature as stored. `set_signature`
+  changes only the signature (HTML, or empty to remove it) of the primary
+  identity, or of the alias named by `send_as_email`, through
+  `sendAs.patch`. No alias is created or verified: that needs the sharing
+  scope, which the server never requests.
 - `get_vacation` and `set_vacation`, registered only with
   `WX_GMAIL_ALLOW_SETTINGS=true` and only usable by accounts that granted
   the `gmail.settings.basic` scope. `get_vacation` shows the responder's
