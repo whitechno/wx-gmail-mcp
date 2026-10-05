@@ -49,6 +49,8 @@ SETTINGS: set[str] = {
     "create_filter",
     "delete_filter",
     "replace_filter",
+    "get_vacation",
+    "set_vacation",
 }
 DELETE: set[str] = {"trash", "untrash", "delete_permanently"}
 
