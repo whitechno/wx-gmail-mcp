@@ -8,6 +8,14 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `wx-gmail-mcp --doctor` checks an installation and prints one line per
+  check: Python and `uv`, whether `gcloud` is installed and logged in,
+  the home directory and its modes, the OAuth client file's shape (a
+  Desktop app client, never printing its contents), the gates on in the
+  environment, each account's token and granted scopes against those
+  gates, and which MCP clients (Claude Code, Claude Desktop, Codex,
+  Antigravity, Cursor) carry a registration, read from their config
+  files without changing them. Exits 1 on any failure.
 - `list_send_as` and `set_signature`, registered only with
   `WX_GMAIL_ALLOW_SETTINGS=true` and only usable by accounts that granted
   the `gmail.settings.basic` scope. `list_send_as` shows the primary
