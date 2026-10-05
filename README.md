@@ -8,6 +8,12 @@ sending, settings and deletion behind opt-in gates.
 **Status: under development, not yet usable.** The first release will be
 `v0.1.0`; see [CHANGELOG.md](CHANGELOG.md).
 
+## Registering with a client
+
+`wx-gmail-mcp --print-config <client>` prints a ready-to-paste block;
+[docs/CLIENTS.md](docs/CLIENTS.md) has the steps per client and the
+compatibility matrix.
+
 ## Development
 
 Requires Python 3.14+ and [uv](https://docs.astral.sh/uv/).

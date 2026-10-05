@@ -19,7 +19,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from wx_gmail_mcp.config import ALL_GATES, HOME_ENV, Settings
+from wx_gmail_mcp.config import HOME_ENV, Settings
 
 SERVER_NAME = "wx-gmail-mcp"
 PACKAGE = "wx_gmail_mcp"
@@ -42,7 +42,7 @@ def server_env(settings: Settings, environ: Mapping[str, str]) -> dict[str, str]
 
     Values are canonical (``true``), whatever spelling turned the gate on.
     """
-    env = {gate.env: "true" for gate in ALL_GATES if settings.gates.is_on(gate)}
+    env = {gate.env: "true" for gate in settings.gates.enabled()}
     home = environ.get(HOME_ENV, "").strip()
     if home:
         # Absolute: the client starts the server from a directory of its own.
@@ -113,6 +113,10 @@ def render_gemini(command: list[str], env: dict[str, str]) -> str:
     return _json_block(command, env)
 
 
+def render_antigravity(command: list[str], env: dict[str, str]) -> str:
+    return _json_block(command, env)
+
+
 def render_cursor(command: list[str], env: dict[str, str]) -> str:
     return _json_block(command, env, type="stdio")
 
@@ -145,6 +149,13 @@ HARNESSES: tuple[Harness, ...] = (
         render_gemini,
     ),
     Harness(
+        "antigravity",
+        "Antigravity",
+        "merge into ~/.gemini/config/mcp_config.json (global, shared by the"
+        " agy CLI and the IDE) or .agents/mcp_config.json (workspace)",
+        render_antigravity,
+    ),
+    Harness(
         "cursor",
         "Cursor",
         "merge into ~/.cursor/mcp.json (global) or .cursor/mcp.json (project)",
@@ -171,7 +182,7 @@ def print_config(
     h = harness(name)
     command = command or server_command()
     block = h.render(command, server_env(settings, environ))
-    on = [g.env for g in ALL_GATES if settings.gates.is_on(g)]
+    on = [g.env for g in settings.gates.enabled()]
     gates = ", ".join(on) if on else "none (read, search, labels, drafts only)"
     hint = f"{h.title}: {h.where}. Gates on: {gates}."
     if in_uv_cache(command[0]):
