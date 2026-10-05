@@ -240,15 +240,19 @@ def test_registrations_not_found(tmp_path: Path) -> None:
 
 
 def test_registrations_found_in_every_client(tmp_path: Path) -> None:
-    s = Settings(home=Path.home() / ".wx-gmail-mcp", gates=Gates())
     loc = locator(tmp_path)
+    s = Settings(home=loc.user_home / ".wx-gmail-mcp", gates=Gates())
     exe = tmp_path / "bin" / "wx-gmail-mcp"
     exe.parent.mkdir()
     exe.write_text("")
     claude = {
         "mcpServers": {"wx-gmail-mcp": {"command": str(exe), "args": []}},
         "projects": {
-            str(loc.cwd): json.loads(mcp_block("uv", WX_GMAIL_ALLOW_SETTINGS="true"))
+            str(loc.cwd): json.loads(
+                mcp_block(
+                    "uv", WX_GMAIL_ALLOW_SETTINGS="true", WX_GMAIL_ALLOW_DELETE="1"
+                )
+            )
         },
     }
     (loc.user_home / ".claude.json").write_text(json.dumps(claude))
@@ -291,7 +295,9 @@ def test_registrations_found_in_every_client(tmp_path: Path) -> None:
     assert user.startswith(f"user scope, {loc.user_home / '.claude.json'}")
     assert f"command: {exe}; gates: none" in user
     assert local.startswith("local scope")
+    # Only the exact value ``true`` counts as on; "1" is off, as in the server.
     assert "command: uv; gates: WX_GMAIL_ALLOW_SETTINGS" in local
+    assert "WX_GMAIL_ALLOW_DELETE" not in local
     assert project.startswith(f"project scope, {loc.cwd / '.mcp.json'}")
     assert "gates: WX_GMAIL_ALLOW_SENDING" in details[3][2]
     assert f"command: {exe} --flag; gates: WX_GMAIL_ALLOW_DELETE" in details[4][2]
@@ -300,7 +306,7 @@ def test_registrations_found_in_every_client(tmp_path: Path) -> None:
     assert details[7][2].startswith("project")
 
 
-def test_registration_warnings(tmp_path: Path) -> None:
+def test_registration_warnings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     s = make_settings(tmp_path / "home")  # not the default home
     loc = locator(tmp_path)
     missing = tmp_path / "gone" / "wx-gmail-mcp"
@@ -308,7 +314,9 @@ def test_registration_warnings(tmp_path: Path) -> None:
     (loc.user_home / ".cursor/mcp.json").write_text(mcp_block(str(missing)))
     agy = loc.user_home / ".gemini/config/mcp_config.json"
     agy.parent.mkdir(parents=True)
-    agy.write_text(mcp_block("uv", WX_GMAIL_MCP_HOME=str(s.home)))
+    # A relative home in the registration matches once made absolute.
+    monkeypatch.chdir(tmp_path)
+    agy.write_text(mcp_block("uv", WX_GMAIL_MCP_HOME="home"))
     (loc.cwd / ".mcp.json").write_text(mcp_block("uv", WX_GMAIL_MCP_HOME="/elsewhere"))
     checks = {c.name: c for c in doctor.check_registrations(s, loc)}
     cursor = checks["client Cursor"]
@@ -316,7 +324,7 @@ def test_registration_warnings(tmp_path: Path) -> None:
     assert "(command not found)" in cursor.detail
     assert "the client uses the default home" in cursor.detail
     assert checks["client Antigravity"].status == INFO
-    assert f"home: {s.home}" in checks["client Antigravity"].detail
+    assert checks["client Antigravity"].detail.endswith("home: home")
     code = checks["client Claude Code"]
     assert code.status == WARN
     assert "home: /elsewhere; (not the home this doctor checked)" in code.detail

@@ -4,8 +4,10 @@ Checks the interpreter and ``uv``, whether ``gcloud`` is installed and
 logged in, the home directory layout and modes, the OAuth client file's
 shape, each account's token and granted scopes against the gates that
 are on, and which MCP clients carry a registration (a read-only look at
-the files ``--print-config`` targets). Every external call is injectable
-so tests run without a shell or a network.
+the files ``--print-config`` targets). The token check goes through the
+shared loader, so, like ``--list``, it refreshes an expired token and
+rewrites its file; nothing else is written. Every external call is
+injectable so tests run without a shell or a network.
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from wx_gmail_mcp import __version__, accounts, auth, clients
-from wx_gmail_mcp.config import HOME_ENV, Settings, scope_label
+from wx_gmail_mcp.config import HOME_DIRNAME, HOME_ENV, Settings, env_flag, scope_label
 from wx_gmail_mcp.errors import WxGmailError
 
 MIN_PYTHON = (3, 14)
@@ -210,7 +212,10 @@ def check_private_files(settings: Settings) -> Check:
         seen.append("tokens/")
         if not _mode_ok(settings.tokens_dir, 0o700):
             wrong.append(f"chmod 700 {settings.tokens_dir}")
-        tokens = sorted(p for p in settings.tokens_dir.iterdir() if p.is_file())
+        try:
+            tokens = sorted(p for p in settings.tokens_dir.iterdir() if p.is_file())
+        except OSError as e:
+            return Check(FAIL, "permissions", f"cannot list {settings.tokens_dir}: {e}")
         seen.append(f"{len(tokens)} token file{'' if len(tokens) == 1 else 's'}")
         wrong.extend(f"chmod 600 {p}" for p in tokens if not _mode_ok(p, 0o600))
     if wrong:
@@ -403,18 +408,22 @@ READERS: dict[str, Callable[[Locator], list[Registration]]] = {
 }
 
 
-def describe_registration(reg: Registration, settings: Settings) -> Check:
-    gates = [k for k in reg.env if k.startswith("WX_GMAIL_ALLOW_")]
+def describe_registration(reg: Registration, settings: Settings, loc: Locator) -> Check:
+    # Only the exact value ``true`` turns a gate on (config.env_flag).
+    gates = [
+        k for k in reg.env if k.startswith("WX_GMAIL_ALLOW_") and env_flag(reg.env, k)
+    ]
     parts = [f"{reg.scope}, {reg.path}", f"command: {' '.join(reg.command)}"]
     parts.append("gates: " + (", ".join(gates) if gates else "none"))
     status = INFO
     home = reg.env.get(HOME_ENV, "").strip()
+    checked = settings.home.expanduser().absolute()
     if home:
         parts.append(f"home: {home}")
-        if Path(home).expanduser() != settings.home:
+        if Path(home).expanduser().absolute() != checked:
             status = WARN
             parts.append("(not the home this doctor checked)")
-    elif settings.home != Path.home() / ".wx-gmail-mcp":
+    elif checked != (loc.user_home / HOME_DIRNAME).absolute():
         status = WARN
         parts.append(f"(no {HOME_ENV}; the client uses the default home)")
     exe = reg.command[0]
@@ -440,7 +449,7 @@ def check_registrations(settings: Settings, loc: Locator) -> list[Check]:
             checks.append(Check(INFO, name, "not registered"))
             continue
         for reg in regs:
-            described = describe_registration(reg, settings)
+            described = describe_registration(reg, settings, loc)
             checks.append(Check(described.status, name, described.detail))
     return checks
 
