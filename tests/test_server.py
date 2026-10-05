@@ -46,7 +46,7 @@ SETTINGS: set[str] = {
     "delete_filter",
     "replace_filter",
 }
-DELETE: set[str] = set()
+DELETE: set[str] = {"trash", "untrash"}
 
 TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,40}$")
 SIMPLE_TYPES = {"string", "integer", "number", "boolean"}
