@@ -301,6 +301,7 @@ def run_oauth(
         notes.append(
             f"Warning: {gate_warning(missing)}; "
             + ("its tools" if len(missing) == 1 else "their tools")
-            + " will fail until you re-run --auth and allow it."
+            + " will fail until you re-run --auth and allow "
+            + ("it." if len(missing) == 1 else "them.")
         )
     return AuthResult(alias, email, actual, granted_set, tuple(notes))
