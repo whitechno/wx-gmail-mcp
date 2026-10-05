@@ -175,6 +175,8 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             lines, message_ids, not_trashed = audit_threads(svc, items)
         if require_trashed:
             refuse_untrashed(not_trashed, k)
+        if not message_ids:
+            raise WxGmailError("Nothing to delete: the threads hold no messages.")
         what = plural(len(items), k)
         if dry_run:
             return "\n".join(

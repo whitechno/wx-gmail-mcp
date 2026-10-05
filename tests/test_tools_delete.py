@@ -307,4 +307,14 @@ def test_partially_trashed_thread_is_refused(tmp_path: Path) -> None:
         dry_run=False,
     )
     assert text.startswith("Error: 1 thread is not entirely in Trash: t1.")
+    text = call(
+        _server(tmp_path, fake),
+        "delete_permanently",
+        account="work",
+        ids=["t1"],
+        kind="thread",
+        require_trashed=False,
+        dry_run=False,
+    )
+    assert text == "Error: Nothing to delete: the threads hold no messages."
     assert fake.calls_to("users.messages.batchDelete") == []

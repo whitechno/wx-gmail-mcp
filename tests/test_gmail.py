@@ -68,6 +68,16 @@ def test_batch_modify_chunks_of_1000() -> None:
     assert calls[2]["body"]["ids"][-1] == "2499"
 
 
+def test_batch_delete_chunks_of_1000() -> None:
+    fake = FakeGmail()
+    ids = [str(i) for i in range(1200)]
+    assert gmail.batch_delete(fake, ids) == 1200
+    calls = fake.calls_to("users.messages.batchDelete")
+    assert [len(c["body"]["ids"]) for c in calls] == [1000, 200]
+    assert set(calls[0]["body"]) == {"ids"}
+    assert calls[1]["body"]["ids"][-1] == "1199"
+
+
 def test_batch_modify_with_no_ids_makes_no_call() -> None:
     fake = FakeGmail()
     assert gmail.batch_modify(fake, [], [], []) == 0
