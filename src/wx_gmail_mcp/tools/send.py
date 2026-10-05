@@ -151,7 +151,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             to=to,
             subject=subject,
             body=text,
-            cc=cc,
+            cc=compose.join_recipients(cc, exclude=to),
             bcc=bcc,
             html="",
             attachments=attachments,

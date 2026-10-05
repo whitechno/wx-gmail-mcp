@@ -292,7 +292,7 @@ def original_attachments(svc: GmailService, orig: Original) -> list[mime.Blob]:
         raise WxGmailError(
             f"The original's attachments total {declared / 1_000_000:.1f} MB; "
             f"Gmail accepts up to {mime.MAX_ATTACHMENT_BYTES // 1_000_000} MB per "
-            "message. Forward with include_attachments=false or as_attachment=true."
+            "message. Forward with include_attachments=false."
         )
     blobs: list[mime.Blob] = []
     for a in atts:

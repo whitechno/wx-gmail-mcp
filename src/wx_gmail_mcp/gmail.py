@@ -242,7 +242,8 @@ def batch_delete(svc: GmailService, message_ids: list[str]) -> int:
 
 def rfc822_upload(data: bytes) -> MediaIoBaseUpload:
     """An RFC 822 message as the media body of send or draft calls.
-    Resumable, so a large message survives a dropped connection."""
+    Resumable: the upload protocol Gmail documents for messages up to
+    35 MB (no retries are attempted; a failure surfaces to the user)."""
     return MediaIoBaseUpload(
         io.BytesIO(data), mimetype="message/rfc822", resumable=True
     )

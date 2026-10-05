@@ -379,6 +379,26 @@ def test_forward_as_attachment(tmp_path: Path) -> None:
     assert inner.get_content() == "inner\n"
 
 
+def test_forward_cc_is_validated_like_reply(tmp_path: Path) -> None:
+    fake = _fake(message("m1", "t1", headers=HEADERS))
+    mcp = _server(tmp_path, fake)
+    text = call(
+        mcp, "forward", account="work", message_id="m1", to="d@example.com", cc="<<<"
+    )
+    assert text == "Error: cc could not be parsed as addresses: '<<<'."
+    assert fake.calls_to("users.messages.send") == []
+    call(
+        mcp,
+        "forward",
+        account="work",
+        message_id="m1",
+        to="d@example.com",
+        cc="e@example.com, d@example.com,",
+    )
+    _, msg = _sent(fake)
+    assert msg["Cc"] == "e@example.com"
+
+
 def test_forward_requires_to(tmp_path: Path) -> None:
     fake = _fake(message("m1", "t1", headers=HEADERS))
     text = call(
