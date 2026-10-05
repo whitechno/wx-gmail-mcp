@@ -203,7 +203,7 @@ def test_api_errors_come_back_as_text(settings: Settings) -> None:
 def test_search_strips_invisible_characters_from_snippets(
     settings: Settings,
 ) -> None:
-    padded = "Big​ sale͏͏͏ ⁠now &amp; later﻿"
+    padded = "Big\u200b sale \u034f \u034f \u034f \u2060now &amp; later \ufeff \u034f "
     fake = _fake(
         **{
             "users.messages.list": {"messages": [{"id": "m1"}]},

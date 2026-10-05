@@ -180,7 +180,7 @@ the project uses [Semantic Versioning](https://semver.org/).
 - `search` and `search_threads` strip invisible characters from
   snippets (zero-width spaces and joiners, byte order marks, soft
   hyphens and the combining grapheme joiner that marketing mail pads
-  snippets with).
+  snippets with) and collapse the runs of spaces they leave behind.
 - `--auth` and `add_account` say so when the alias already existed and
   its token was replaced.
 - `set_signature` with a whitespace-only `signature` clears the
