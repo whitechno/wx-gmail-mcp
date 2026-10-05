@@ -68,12 +68,15 @@ def decode_body(data: str, charset: str = "utf-8") -> str:
         return raw.decode("utf-8", errors="replace")
 
 
-def _walk(payload: dict[str, Any]) -> list[dict[str, Any]]:
+def walk(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """All MIME parts, depth first, the payload itself first."""
     parts = [payload]
     for part in payload.get("parts", []) or []:
-        parts.extend(_walk(part))
+        parts.extend(walk(part))
     return parts
+
+
+_walk = walk
 
 
 def _first_body(payload: dict[str, Any], mime_prefix: str) -> str | None:

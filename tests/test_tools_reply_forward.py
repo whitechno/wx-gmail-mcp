@@ -169,6 +169,64 @@ def test_reply_reports_a_cut_original(
     assert msg.get_content().endswith("> lon\n> [original text cut here]\n")
 
 
+def test_reply_cc_trailing_comma_kept_and_junk_refused(tmp_path: Path) -> None:
+    fake = _fake(message("m1", "t1", headers=HEADERS))
+    mcp = _server(tmp_path, fake)
+    call(
+        mcp, "reply", account="work", message_id="m1", body="x", cc="dave@example.com,"
+    )
+    _, msg = _sent(fake)
+    assert msg["Cc"] == "dave@example.com"
+    text = call(
+        mcp, "reply", account="work", message_id="m1", body="x", cc="a@x.org, <<<"
+    )
+    assert text == "Error: cc could not be parsed as addresses: 'a@x.org, <<<'."
+    assert len(fake.calls_to("users.messages.send")) == 1
+
+
+def test_reply_all_cc_never_repeats_to(tmp_path: Path) -> None:
+    fake = _fake(message("m1", "t1", headers=HEADERS))
+    call(
+        _server(tmp_path, fake),
+        "reply",
+        account="work",
+        message_id="m1",
+        body="x",
+        reply_all=True,
+        cc="alice@example.com",
+    )
+    _, msg = _sent(fake)
+    assert msg["To"] == "Alice <alice@example.com>"
+    assert msg["Cc"] == "Bob <bob@example.com>, carol@example.com"
+
+
+def test_forward_quotes_an_out_of_line_body(tmp_path: Path) -> None:
+    parts: list[dict[str, Any]] = [
+        {
+            "partId": "0",
+            "mimeType": "text/plain",
+            "body": {"attachmentId": "body1", "size": 50000},
+        }
+    ]
+    fake = _fake(
+        message("m1", "t1", headers=HEADERS, parts=parts),
+        **{"users.messages.attachments.get": {"data": b64("the stored body")}},
+    )
+    call(
+        _server(tmp_path, fake),
+        "forward",
+        account="work",
+        message_id="m1",
+        to="d@x.org",
+    )
+    assert [c["id"] for c in fake.calls_to("users.messages.attachments.get")] == [
+        "body1"
+    ]
+    _, msg = _sent(fake)
+    assert msg.get_content_type() == "text/plain"
+    assert msg.get_content().endswith("\n\nthe stored body\n")
+
+
 def test_reply_to_own_sent_message_goes_to_its_recipients(tmp_path: Path) -> None:
     own = {**HEADERS, "From": "you@example.com", "To": "Bob <bob@example.com>"}
     fake = _fake(message("m1", "t1", headers=own, labels=("SENT",)))

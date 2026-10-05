@@ -226,6 +226,85 @@ def test_join_recipients_dedupes() -> None:
         == "Bob <bob@example.com>, carol@example.com, dave@example.com"
     )
     assert compose.join_recipients("", " ") == ""
+    assert (
+        compose.join_recipients(
+            "bob@example.com, carol@example.com", exclude="Carol <carol@example.com>"
+        )
+        == "bob@example.com"
+    )
+
+
+def test_parse_addresses_is_lenient_then_strict_about_junk() -> None:
+    from wx_gmail_mcp.errors import WxGmailError
+
+    # Python's strict parser gives up on a trailing comma; the address is
+    # still there and must not be dropped from a send.
+    assert compose.parse_addresses("dave@example.com,") == [("", "dave@example.com")]
+    assert compose.join_recipients("dave@example.com,") == "dave@example.com"
+    assert compose.parse_addresses("") == []
+    # User input that leaves junk behind is refused, not silently trimmed.
+    with pytest.raises(WxGmailError, match=r"cc could not be parsed as addresses"):
+        compose.join_recipients("a@example.com, <<<")
+    with pytest.raises(WxGmailError, match="could not be parsed"):
+        compose.parse_addresses("<<<", what="cc")
+    # Original headers are read leniently and never raise.
+    assert compose.parse_addresses("<<<") == []
+    o = _orig(To="me@example.com, bob@example.com,", Cc="")
+    assert compose.reply_recipients(o, ME, True)[1] == "bob@example.com"
+
+
+def test_load_original_inlines_out_of_line_bodies() -> None:
+    from .fake_gmail import FakeGmail
+
+    parts: list[dict[str, Any]] = [
+        {
+            "partId": "0",
+            "mimeType": "text/html",
+            "body": {"attachmentId": "body1", "size": 90000},
+        },
+        {
+            "partId": "1",
+            "mimeType": "text/calendar",
+            "body": {"attachmentId": "ics1", "size": 3},
+        },
+    ]
+    msg = message("m1", "t1", parts=parts)
+    msg["sizeEstimate"] = 123
+    fake = FakeGmail(
+        {
+            "users.messages.get": msg,
+            "users.messages.attachments.get": lambda **kw: {
+                "data": b64("<p>big <b>body</b></p>" if kw["id"] == "body1" else "ics")
+            },
+        }
+    )
+    o = compose.load_original(fake, "m1")
+    assert o.size_estimate == 123
+    assert [c["id"] for c in fake.calls_to("users.messages.attachments.get")] == [
+        "body1"
+    ]
+    assert compose.quoted(o)[0].endswith("wrote:\n> big body")
+    assert compose.forwarded(o)[0].endswith("\n\nbig body")
+    # The body is not re-attached; the unnamed calendar part is.
+    blobs = compose.original_attachments(fake, o)
+    assert [(b.filename, b.subtype) for b in blobs] == [("attachment-1", "calendar")]
+
+
+def test_original_as_attachment_refuses_oversize_before_download(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from wx_gmail_mcp.errors import WxGmailError
+
+    from .fake_gmail import FakeGmail
+
+    monkeypatch.setattr(mime, "MAX_ATTACHMENT_BYTES", 100)
+    msg = message("m1", "t1")
+    msg["sizeEstimate"] = 101
+    o = Original.from_message(msg)
+    fake = FakeGmail()
+    with pytest.raises(WxGmailError, match="cannot be forwarded as an attachment"):
+        compose.original_as_attachment(fake, o)
+    assert fake.calls == []
 
 
 def test_original_attachments_fetches_each_part() -> None:

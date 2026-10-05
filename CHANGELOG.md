@@ -120,8 +120,9 @@ the project uses [Semantic Versioning](https://semver.org/).
   empty `text/plain` alternative. `forward` checks the original's
   declared attachment sizes before fetching any, does not re-attach a
   body part Gmail stored out of line, and strips `Bcc` from the original
-  when forwarding it as an attachment; `reply` lists each Cc address
-  once.
+  when forwarding it as an attachment, and quotes a body Gmail stored
+  out of line; `reply` lists each Cc address once and refuses a `cc`
+  that does not parse instead of dropping it.
 - `search` unescapes HTML entities in snippets (`&#39;` -> `'`).
 - Gmail API errors read `HTTP <status>: <message>` instead of the full
   `HttpError` text with the request URL.
