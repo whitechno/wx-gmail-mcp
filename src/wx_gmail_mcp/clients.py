@@ -45,7 +45,8 @@ def server_env(settings: Settings, environ: Mapping[str, str]) -> dict[str, str]
     env = {gate.env: "true" for gate in ALL_GATES if settings.gates.is_on(gate)}
     home = environ.get(HOME_ENV, "").strip()
     if home:
-        env[HOME_ENV] = str(Path(home).expanduser())
+        # Absolute: the client starts the server from a directory of its own.
+        env[HOME_ENV] = str(Path(home).expanduser().absolute())
     return env
 
 
@@ -66,6 +67,12 @@ def server_command(
     # Not resolved: in a virtual environment the interpreter is a symlink,
     # and following it would lose the environment that holds the package.
     return [str(Path(python).absolute()), "-m", PACKAGE]
+
+
+def _toml_string(value: str) -> str:
+    # JSON string syntax is valid TOML, as long as nothing is escaped into
+    # surrogate pairs, which TOML rejects.
+    return json.dumps(value, ensure_ascii=False)
 
 
 def _json_block(command: list[str], env: dict[str, str], **extra: str) -> str:
@@ -92,13 +99,13 @@ def render_claude_desktop(command: list[str], env: dict[str, str]) -> str:
 def render_codex(command: list[str], env: dict[str, str]) -> str:
     lines = [
         f"[mcp_servers.{SERVER_NAME}]",
-        f"command = {json.dumps(command[0])}",
-        f"args = {json.dumps(command[1:])}",
+        f"command = {_toml_string(command[0])}",
+        "args = [" + ", ".join(_toml_string(a) for a in command[1:]) + "]",
         f"startup_timeout_sec = {CODEX_STARTUP_TIMEOUT_SEC}",
     ]
     if env:
         lines += ["", f"[mcp_servers.{SERVER_NAME}.env]"]
-        lines += [f"{key} = {json.dumps(value)}" for key, value in env.items()]
+        lines += [f"{key} = {_toml_string(value)}" for key, value in env.items()]
     return "\n".join(lines) + "\n"
 
 
@@ -162,8 +169,19 @@ def print_config(
 ) -> tuple[str, str]:
     """``(block, hint)``: the block to paste, and one line saying where."""
     h = harness(name)
-    block = h.render(command or server_command(), server_env(settings, environ))
+    command = command or server_command()
+    block = h.render(command, server_env(settings, environ))
     on = [g.env for g in ALL_GATES if settings.gates.is_on(g)]
     gates = ", ".join(on) if on else "none (read, search, labels, drafts only)"
     hint = f"{h.title}: {h.where}. Gates on: {gates}."
+    if in_uv_cache(command[0]):
+        hint += (
+            f" Note: {command[0]} is in the uv cache, which a prune can remove;"
+            " `uv tool install` gives a stable path."
+        )
     return block, hint
+
+
+def in_uv_cache(executable: str) -> bool:
+    """True when the executable lives in a ``uvx`` environment under uv's cache."""
+    return any(part.startswith("archive-v") for part in Path(executable).parts)

@@ -24,9 +24,13 @@ def test_server_env_lists_only_gates_that_are_on_and_home_override(
         "WX_GMAIL_ALLOW_SETTINGS": "true",
         "WX_GMAIL_ALLOW_DELETE": "true",
     }
-    # Canonical spelling, whatever the shell had; the home override rides along.
+    # Canonical spelling, whatever the shell had; the home override rides along,
+    # absolute: the client starts the server from a directory of its own.
     env = clients.server_env(s, {HOME_ENV: "~/elsewhere"})
     assert env[HOME_ENV] == str(Path("~/elsewhere").expanduser())
+    relative = clients.server_env(s, {HOME_ENV: "./mail"})[HOME_ENV]
+    assert Path(relative).is_absolute()
+    assert Path(relative) == Path("mail").absolute()
     assert clients.server_env(make_settings(tmp_path), {HOME_ENV: "  "}) == {}
 
 
@@ -64,7 +68,7 @@ def test_claude_code_is_one_shell_command_with_env_before_transport() -> None:
 
 
 def test_claude_code_quotes_paths_with_spaces() -> None:
-    cmd = ["/Users/A User/bin/wx-gmail-mcp"]
+    cmd = ["/opt/Some Dir/bin/wx-gmail-mcp"]
     text = clients.render_claude_code(cmd, {})
     assert "--env" not in text
     assert shlex.split(text)[-1] == cmd[0]
@@ -88,6 +92,9 @@ def test_json_clients_share_the_mcp_servers_shape(name: str) -> None:
 
 def test_codex_block_is_valid_toml() -> None:
     table = tomllib.loads(clients.render_codex(CMD, ENV))["mcp_servers"]
+    # Non-ASCII is written as is: TOML rejects JSON's surrogate escapes.
+    wide = tomllib.loads(clients.render_codex(["/opt/bin/\U0001f600"], {}))
+    assert wide["mcp_servers"]["wx-gmail-mcp"]["command"] == "/opt/bin/\U0001f600"
     entry = table["wx-gmail-mcp"]
     assert entry["command"] == CMD[0]
     assert entry["args"] == []
@@ -95,6 +102,15 @@ def test_codex_block_is_valid_toml() -> None:
     assert entry["env"] == ENV
     bare = tomllib.loads(clients.render_codex(CMD, {}))["mcp_servers"]["wx-gmail-mcp"]
     assert "env" not in bare
+
+
+def test_print_config_warns_about_a_uv_cache_path(tmp_path: Path) -> None:
+    s = make_settings(tmp_path)
+    cached = str(tmp_path / "uv" / "archive-v0" / "abc" / "bin" / "wx-gmail-mcp")
+    _, hint = clients.print_config("codex", s, {}, [cached])
+    assert "uv cache" in hint
+    _, hint = clients.print_config("codex", s, {}, CMD)
+    assert "uv cache" not in hint
 
 
 def test_print_config_names_the_gates_and_the_place(tmp_path: Path) -> None:
