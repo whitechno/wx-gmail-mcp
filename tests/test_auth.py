@@ -331,3 +331,22 @@ def test_run_oauth_notes_a_replaced_alias(tmp_path: Path) -> None:
     )
     assert "Note: refreshed the token 'work' for you@example.com." in third.text()
     assert "replaced" not in third.text()
+
+
+def test_run_oauth_condenses_several_unmet_gates(tmp_path: Path) -> None:
+    s = make_settings(tmp_path, sending=True, settings=True, delete=True)
+    write_client(s)
+    result = auth.run_oauth(
+        s,
+        "work",
+        "you@example.com",
+        authorize=_fake_authorize({}, list(BASE_SCOPES)),  # every gate unchecked
+        fetch_email=lambda creds: "you@example.com",
+    )
+    warnings = [n for n in result.notes if n.startswith("Warning:")]
+    assert warnings == [
+        "Warning: WX_GMAIL_ALLOW_SENDING, WX_GMAIL_ALLOW_SETTINGS and "
+        "WX_GMAIL_ALLOW_DELETE are on but the send, settings.basic and full "
+        "scopes are not granted; their tools will fail until you re-run --auth "
+        "and allow them."
+    ]
