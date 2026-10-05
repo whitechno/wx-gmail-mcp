@@ -130,7 +130,7 @@ def test_print_config_reads_gates_from_env_and_prints_no_secret(
     write_token(s, "work", (SCOPE_SEND,), refresh_token="placeholder-refresh")
     monkeypatch.setenv("WX_GMAIL_ALLOW_SETTINGS", "TRUE")
     monkeypatch.setattr(server, "serve", lambda s: pytest.fail("served"))
-    assert main(["--print-config", "gemini"]) == 0
+    assert main(["--print-config", "antigravity"]) == 0
     captured = capsys.readouterr()
     entry = json.loads(captured.out)["mcpServers"]["wx-gmail-mcp"]
     assert Path(entry["command"]).is_absolute()
@@ -138,7 +138,7 @@ def test_print_config_reads_gates_from_env_and_prints_no_secret(
         "WX_GMAIL_ALLOW_SETTINGS": "true",
         "WX_GMAIL_MCP_HOME": str(env_home),
     }
-    assert captured.err.startswith("# Gemini CLI: merge into ~/.gemini/settings.json")
+    assert captured.err.startswith("# Antigravity: merge into ~/.gemini/config/")
     for secret in ("placeholder-secret", "placeholder-refresh", "placeholder-access"):
         assert secret not in captured.out + captured.err
 

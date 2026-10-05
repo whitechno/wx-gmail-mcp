@@ -109,10 +109,6 @@ def render_codex(command: list[str], env: dict[str, str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_gemini(command: list[str], env: dict[str, str]) -> str:
-    return _json_block(command, env)
-
-
 def render_antigravity(command: list[str], env: dict[str, str]) -> str:
     return _json_block(command, env)
 
@@ -141,12 +137,6 @@ HARNESSES: tuple[Harness, ...] = (
         "Codex CLI",
         "append to ~/.codex/config.toml",
         render_codex,
-    ),
-    Harness(
-        "gemini",
-        "Gemini CLI",
-        "merge into ~/.gemini/settings.json (user scope)",
-        render_gemini,
     ),
     Harness(
         "antigravity",
