@@ -126,5 +126,6 @@ def test_tools_doc_names_gate_and_scope_per_group() -> None:
 def test_tools_doc_examples_use_placeholders_only() -> None:
     addresses = set(re.findall(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[a-z]{2,}", doc_text()))
     assert addresses, "no example addresses?"
-    assert all(a.endswith("example.com") for a in addresses), addresses
+    domains = [a.rsplit("@", 1)[1].split(".") for a in addresses]
+    assert all(d[-2:] == ["example", "com"] for d in domains), addresses
     assert "/Users/" not in doc_text()
