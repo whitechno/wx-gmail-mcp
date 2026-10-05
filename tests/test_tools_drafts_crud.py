@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 from email import message_from_bytes, policy
 from email.message import EmailMessage
@@ -13,7 +12,15 @@ from googleapiclient.errors import HttpError
 from wx_gmail_mcp.config import BASE_SCOPES, SCOPE_SEND, Settings
 from wx_gmail_mcp.server import build_server
 
-from .conftest import FakeRuntime, b64, call, make_settings, message, tool_server
+from .conftest import (
+    FakeRuntime,
+    b64,
+    call,
+    make_settings,
+    message,
+    tool_server,
+    uploaded,
+)
 from .fake_gmail import FakeGmail
 
 FIELDS: dict[str, Any] = {
@@ -25,8 +32,7 @@ FIELDS: dict[str, Any] = {
 
 
 def _raw(call_kwargs: dict[str, Any]) -> EmailMessage:
-    raw = call_kwargs["body"]["message"]["raw"]
-    parsed = message_from_bytes(base64.urlsafe_b64decode(raw), policy=policy.default)
+    parsed = message_from_bytes(uploaded(call_kwargs), policy=policy.default)
     return cast(EmailMessage, parsed)
 
 
@@ -254,7 +260,7 @@ def test_update_draft_plain_draft_has_no_thread(settings: Settings) -> None:
     )
     call(tool_server(settings, fake), "update_draft", **FIELDS, draft_id="d1")
     (upd,) = fake.calls_to("users.drafts.update")
-    assert "threadId" not in upd["body"]["message"]
+    assert "body" not in upd  # no thread: the upload is the whole request
     msg = _raw(upd)
     assert msg["In-Reply-To"] is None and msg["References"] is None
 

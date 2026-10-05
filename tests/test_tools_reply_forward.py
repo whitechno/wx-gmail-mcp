@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 from email import message_from_bytes, policy
 from email.message import EmailMessage
 from pathlib import Path
@@ -20,6 +19,7 @@ from .conftest import (
     message,
     tool_names,
     tool_server,
+    uploaded,
 )
 from .fake_gmail import FakeGmail
 
@@ -42,7 +42,7 @@ def _server(tmp_path: Path, fake: FakeGmail, scopes: tuple[str, ...] = SEND):
 
 def _sent(fake: FakeGmail) -> tuple[dict[str, Any], EmailMessage]:
     (send,) = fake.calls_to("users.messages.send")
-    raw = base64.urlsafe_b64decode(send["body"]["raw"])
+    raw = uploaded(send)
     return send, cast(EmailMessage, message_from_bytes(raw, policy=policy.default))
 
 
@@ -283,10 +283,8 @@ def test_forward_without_original_attachments(tmp_path: Path) -> None:
 
 
 def test_forward_as_attachment(tmp_path: Path) -> None:
-    original_raw = base64.urlsafe_b64decode(
-        mime.build_message(
-            to="you@example.com", subject="Plans: Q4/2026?", body="inner"
-        )
+    original_raw = mime.build_message(
+        to="you@example.com", subject="Plans: Q4/2026?", body="inner"
     )
 
     def get(**kw: Any) -> dict[str, Any]:

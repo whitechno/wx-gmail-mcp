@@ -13,7 +13,6 @@ from collections.abc import Sequence
 from mcp.server.mcpserver import MCPServer
 
 from wx_gmail_mcp import auth, compose, gmail
-from wx_gmail_mcp.compose import build_raw
 from wx_gmail_mcp.config import SCOPE_SEND
 from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.gmail import GmailService, Runtime, header
@@ -40,7 +39,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         step. `html` adds an HTML alternative to the plain `body`;
         `attachments` are file names inside the server's outbox directory."""
         svc = service(account)
-        raw = build_raw(
+        data = compose.build(
             rt.settings,
             to=to,
             subject=subject,
@@ -51,7 +50,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             attachments=attachments,
             reply_to=reply_to,
         )
-        sent = gmail.send_raw(svc, raw)
+        sent = gmail.send_message(svc, data)
         return (
             f"Sent. message id={sent.get('id', '')} "
             f"thread id={sent.get('threadId', '')}"
@@ -97,7 +96,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         in_reply_to, references = compose.threading_headers(orig)
         subject = compose.reply_subject(orig.subject)
         text, cut = compose.reply_body(body, orig, quote)
-        raw = build_raw(
+        data = compose.build(
             rt.settings,
             to=to,
             subject=subject,
@@ -110,7 +109,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             in_reply_to=in_reply_to,
             references=references,
         )
-        sent = gmail.send_raw(svc, raw, orig.thread_id)
+        sent = gmail.send_message(svc, data, orig.thread_id)
         return (
             f"Replied to {orig.id} (To: {to} | Subj: {subject}). "
             f"message id={sent.get('id', '')} thread id={sent.get('threadId', '')}."
@@ -146,7 +145,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             )
         in_reply_to, references = compose.threading_headers(orig)
         subject = compose.forward_subject(orig.subject)
-        raw = build_raw(
+        data = compose.build(
             rt.settings,
             to=to,
             subject=subject,
@@ -160,7 +159,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             references=references,
             blobs=blobs,
         )
-        sent = gmail.send_raw(svc, raw, orig.thread_id)
+        sent = gmail.send_message(svc, data, orig.thread_id)
         return (
             f"Forwarded {orig.id} (To: {to.strip()} | Subj: {subject}). "
             f"message id={sent.get('id', '')} thread id={sent.get('threadId', '')}."

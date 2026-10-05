@@ -18,6 +18,9 @@ from typing import Any
 from wx_gmail_mcp.errors import WxGmailError
 
 TRUNCATED_MARKER = "\n...[truncated]"
+# Gmail refuses messages whose attachments exceed 25 MB; base64 inflates
+# that to about 34 MB of upload, under the API's 35 MB cap.
+MAX_ATTACHMENT_BYTES = 25_000_000
 
 
 _CHARSET_RE = re.compile(r"charset\s*=\s*\"?([\w.:+-]+)\"?", re.IGNORECASE)
@@ -280,6 +283,17 @@ def _attach_blob(msg: EmailMessage, blob: Blob) -> None:
     )
 
 
+def check_attachment_size(attachments: Sequence[Path], blobs: Sequence[Blob]) -> int:
+    """Total attachment bytes, or an error above Gmail's 25 MB limit."""
+    total = sum(p.stat().st_size for p in attachments) + sum(len(b.data) for b in blobs)
+    if total > MAX_ATTACHMENT_BYTES:
+        raise WxGmailError(
+            f"Attachments total {total / 1_000_000:.1f} MB; Gmail accepts up to "
+            f"{MAX_ATTACHMENT_BYTES // 1_000_000} MB per message."
+        )
+    return total
+
+
 def build_message(
     *,
     to: str,
@@ -293,17 +307,19 @@ def build_message(
     reply_to: str = "",
     in_reply_to: str = "",
     references: str = "",
-) -> str:
-    """Build an RFC 822 message and return it base64url-encoded for Gmail.
+) -> bytes:
+    """Build an RFC 822 message as bytes, for a ``message/rfc822`` upload.
 
     Gmail sets ``From`` to the authenticated account. ``html`` adds a
-    text/html alternative next to the plain ``body``. ``attachments`` are
-    already-validated paths (see ``safety.outbox_path``); ``blobs`` are
-    in-memory attachments added after them.
+    text/html alternative next to the plain ``body`` (or is the only part
+    when ``body`` is empty). ``attachments`` are already-validated paths
+    (see ``safety.outbox_path``); ``blobs`` are in-memory attachments added
+    after them. Together they may not exceed ``MAX_ATTACHMENT_BYTES``.
     """
     to = _require(to, "to")
     if not body and not html:
         raise WxGmailError("Give a body, html, or both.")
+    check_attachment_size(attachments, blobs)
     msg = EmailMessage()
     msg["To"] = to
     msg["Subject"] = subject
@@ -317,9 +333,12 @@ def build_message(
         msg["In-Reply-To"] = in_reply_to.strip()
     if references.strip():
         msg["References"] = references.strip()
-    msg.set_content(body)
-    if html:
-        msg.add_alternative(html, subtype="html")
+    if body:
+        msg.set_content(body)
+        if html:
+            msg.add_alternative(html, subtype="html")
+    else:
+        msg.set_content(html, subtype="html")
     for path in attachments:
         maintype, subtype = attachment_type(path.name)
         msg.add_attachment(
@@ -327,4 +346,4 @@ def build_message(
         )
     for blob in blobs:
         _attach_blob(msg, blob)
-    return base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    return msg.as_bytes()

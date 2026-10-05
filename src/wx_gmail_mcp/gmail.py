@@ -1,17 +1,23 @@
-"""Gmail API plumbing: service builder, pagination, batch modify.
+"""Gmail API plumbing: service builder, pagination, batch modify, uploads.
 
 Every call into ``googleapiclient`` goes through here. The discovery
 client has no type information, so the service is typed as ``Any`` and
 the rest of the package sees plain dicts and helper functions.
+
+Outgoing messages (send, drafts) go up as a ``message/rfc822`` media
+upload rather than a base64 ``raw`` field in the JSON body: the JSON form
+is capped at 5 MB, the upload at 35 MB.
 """
 
 from __future__ import annotations
 
+import io
 from collections.abc import Iterator
 from typing import Any
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 
 from wx_gmail_mcp import auth
 from wx_gmail_mcp.config import Settings
@@ -234,25 +240,33 @@ def batch_delete(svc: GmailService, message_ids: list[str]) -> int:
     return len(message_ids)
 
 
-def send_raw(svc: GmailService, raw: str, thread_id: str = "") -> dict[str, Any]:
-    """``messages.send`` of a base64url RFC 822 message; ``thread_id`` files
-    it in an existing conversation (the headers must reference it too)."""
-    body: dict[str, Any] = {"raw": raw}
+def rfc822_upload(data: bytes) -> MediaIoBaseUpload:
+    """An RFC 822 message as the media body of send or draft calls.
+    Resumable, so a large message survives a dropped connection."""
+    return MediaIoBaseUpload(
+        io.BytesIO(data), mimetype="message/rfc822", resumable=True
+    )
+
+
+def send_message(svc: GmailService, data: bytes, thread_id: str = "") -> dict[str, Any]:
+    """``messages.send`` of an RFC 822 message; ``thread_id`` files it in an
+    existing conversation (the headers must reference it too)."""
+    kwargs: dict[str, Any] = {"userId": "me", "media_body": rfc822_upload(data)}
     if thread_id:
-        body["threadId"] = thread_id
-    return svc.users().messages().send(userId="me", body=body).execute()
+        kwargs["body"] = {"threadId": thread_id}
+    return svc.users().messages().send(**kwargs).execute()
 
 
-def _draft_body(raw: str, thread_id: str) -> dict[str, Any]:
-    message: dict[str, Any] = {"raw": raw}
+def _draft_kwargs(data: bytes, thread_id: str) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"userId": "me", "media_body": rfc822_upload(data)}
     if thread_id:
-        message["threadId"] = thread_id
-    return {"message": message}
+        kwargs["body"] = {"message": {"threadId": thread_id}}
+    return kwargs
 
 
-def create_draft(svc: GmailService, raw: str, thread_id: str = "") -> dict[str, Any]:
-    body = _draft_body(raw, thread_id)
-    return svc.users().drafts().create(userId="me", body=body).execute()
+def create_draft(svc: GmailService, data: bytes, thread_id: str = "") -> dict[str, Any]:
+    kwargs = _draft_kwargs(data, thread_id)
+    return svc.users().drafts().create(**kwargs).execute()
 
 
 def list_drafts(
@@ -277,11 +291,11 @@ def get_draft(svc: GmailService, draft_id: str, fmt: str = "full") -> dict[str, 
 
 
 def update_draft(
-    svc: GmailService, draft_id: str, raw: str, thread_id: str = ""
+    svc: GmailService, draft_id: str, data: bytes, thread_id: str = ""
 ) -> dict[str, Any]:
     """``drafts.update``: replaces the draft's message entirely."""
-    body = _draft_body(raw, thread_id)
-    return svc.users().drafts().update(userId="me", id=draft_id, body=body).execute()
+    kwargs = _draft_kwargs(data, thread_id)
+    return svc.users().drafts().update(id=draft_id, **kwargs).execute()
 
 
 def delete_draft(svc: GmailService, draft_id: str) -> None:

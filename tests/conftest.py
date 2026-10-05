@@ -138,6 +138,13 @@ def b64(text: str) -> str:
     return base64.urlsafe_b64encode(text.encode()).decode()
 
 
+def uploaded(call_kwargs: dict[str, Any]) -> bytes:
+    """The RFC 822 bytes a send or draft call uploaded as its media body."""
+    media = call_kwargs["media_body"]
+    assert media.mimetype() == "message/rfc822"
+    return media.getbytes(0, media.size())
+
+
 def message(
     msg_id: str = "m1",
     thread_id: str = "t1",

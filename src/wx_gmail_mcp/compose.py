@@ -26,7 +26,7 @@ QUOTE_LIMIT = 200_000
 TRUNCATED_NOTE = "[original text cut here]"
 
 
-def build_raw(
+def build(
     settings: Settings,
     *,
     to: str,
@@ -40,8 +40,8 @@ def build_raw(
     in_reply_to: str = "",
     references: str = "",
     blobs: Sequence[mime.Blob] = (),
-) -> str:
-    """Resolve outbox attachments, then build the raw message."""
+) -> bytes:
+    """Resolve outbox attachments, then build the RFC 822 message."""
     paths = [safety.outbox_path(settings, name) for name in attachments if name]
     return mime.build_message(
         to=to,

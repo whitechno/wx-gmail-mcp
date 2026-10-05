@@ -127,3 +127,30 @@ def test_runtime_builds_service_from_stored_token(
     rt = gmail.Runtime(settings)
     assert rt.service("work") == "service"
     assert isinstance(built[0], Credentials)
+
+
+def test_outgoing_messages_go_up_as_rfc822_media() -> None:
+    fake = FakeGmail()
+    data = b"To: a@example.com\r\nSubject: s\r\n\r\nbody\r\n"
+    gmail.send_message(fake, data)
+    gmail.send_message(fake, data, "t1")
+    gmail.create_draft(fake, data)
+    gmail.create_draft(fake, data, "t2")
+    gmail.update_draft(fake, "d1", data, "t3")
+    plain, threaded = fake.calls_to("users.messages.send")
+    assert "body" not in plain  # the upload is the whole request
+    assert threaded["body"] == {"threadId": "t1"}
+    for kw in (plain, threaded):
+        assert kw["userId"] == "me"
+        assert "raw" not in kw.get("body", {})
+        media = kw["media_body"]
+        assert media.mimetype() == "message/rfc822"
+        assert media.resumable()
+        assert media.getbytes(0, media.size()) == data
+    created, created_in_thread = fake.calls_to("users.drafts.create")
+    assert "body" not in created
+    assert created_in_thread["body"] == {"message": {"threadId": "t2"}}
+    (updated,) = fake.calls_to("users.drafts.update")
+    assert updated["id"] == "d1"
+    assert updated["body"] == {"message": {"threadId": "t3"}}
+    assert updated["media_body"].getbytes(0, len(data)) == data
