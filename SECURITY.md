@@ -24,9 +24,10 @@ client. Things to know:
   `WX_GMAIL_ALLOW_*` gate is on, and each gate requests only the OAuth
   scope it needs. The gates are enforced in the server, not by the
   client.
-- Permanent deletion takes explicit ids only, is capped per call, and
-  returns an audit trail. Mailbox forwarding is deliberately not
-  exposed.
+- Permanent deletion takes explicit ids only (no query form, no
+  empty-trash tool), is capped at 100 per call, accepts only mail already
+  in Trash unless told otherwise, is a dry run by default and returns an
+  audit trail. Mailbox forwarding is deliberately not exposed.
 - The gates cover mail. Deleting a *label* (`delete_label`) is always
   on: it needs only the base `modify` scope and removes no message, but
   it does take the label off every message for good.

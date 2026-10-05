@@ -13,6 +13,13 @@ the project uses [Semantic Versioning](https://semver.org/).
   an id list of messages (default) or whole threads (`kind="thread"`), up
   to 100 per call, one API call each; a failure midway reports how many
   were done. Trash is reversible; Gmail purges it after 30 days.
+- `delete_permanently` (same gate and scope): messages or whole threads
+  by explicit id only, at most 100 per call, no query form and no
+  empty-trash tool. By default only mail already in Trash is accepted
+  (`require_trashed`); every item's date, sender and subject are fetched
+  before deleting and returned as the audit trail; exactly those messages
+  are then deleted in one `batchDelete`, for threads too. `dry_run`
+  defaults to true and shows that trail without deleting anything.
 - `list_filters` and `get_filter`, registered only with
   `WX_GMAIL_ALLOW_SETTINGS=true` and only usable by accounts that granted
   the `gmail.settings.basic` scope. Each filter is shown with its

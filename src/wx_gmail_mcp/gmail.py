@@ -213,6 +213,7 @@ def trash_message(svc: GmailService, message_id: str) -> dict[str, Any]:
 
 
 def untrash_message(svc: GmailService, message_id: str) -> dict[str, Any]:
+    """``messages.untrash``: removes TRASH; the other labels are kept."""
     return svc.users().messages().untrash(userId="me", id=message_id).execute()
 
 
@@ -222,7 +223,15 @@ def trash_thread(svc: GmailService, thread_id: str) -> dict[str, Any]:
 
 
 def untrash_thread(svc: GmailService, thread_id: str) -> dict[str, Any]:
+    """``threads.untrash``: every message in the thread leaves Trash."""
     return svc.users().threads().untrash(userId="me", id=thread_id).execute()
+
+
+def batch_delete(svc: GmailService, message_ids: list[str]) -> int:
+    """``messages.batchDelete`` in chunks of 1000: permanent, no Trash step."""
+    for chunk in chunked(message_ids, BATCH_LIMIT):
+        svc.users().messages().batchDelete(userId="me", body={"ids": chunk}).execute()
+    return len(message_ids)
 
 
 def send_raw(svc: GmailService, raw: str) -> dict[str, Any]:
