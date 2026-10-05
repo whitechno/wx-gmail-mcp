@@ -8,6 +8,14 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `get_vacation` and `set_vacation`, registered only with
+  `WX_GMAIL_ALLOW_SETTINGS=true` and only usable by accounts that granted
+  the `gmail.settings.basic` scope. `get_vacation` shows the responder's
+  state, subject, plain and HTML message, first and last day and
+  restrictions. `set_vacation` replaces the whole responder (Gmail has no
+  partial update): on or off, subject, plain `body` and `html`, a first
+  and last day as dates (midnight in the machine's zone or an IANA
+  `timezone`) and contacts-only or same-domain-only delivery.
 - `reply` and `forward`, registered only with `WX_GMAIL_ALLOW_SENDING=true`
   and only usable by accounts that granted the send scope. Both stay in
   the original's conversation (Gmail thread id plus `In-Reply-To` and

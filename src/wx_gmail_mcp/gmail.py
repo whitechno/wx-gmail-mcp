@@ -328,3 +328,13 @@ def create_filter(svc: GmailService, body: dict[str, Any]) -> dict[str, Any]:
 
 def delete_filter(svc: GmailService, filter_id: str) -> None:
     svc.users().settings().filters().delete(userId="me", id=filter_id).execute()
+
+
+def get_vacation(svc: GmailService) -> dict[str, Any]:
+    """``settings.getVacation``: the vacation responder resource."""
+    return svc.users().settings().getVacation(userId="me").execute()
+
+
+def update_vacation(svc: GmailService, body: dict[str, Any]) -> dict[str, Any]:
+    """``settings.updateVacation``: replaces the whole resource (a PUT)."""
+    return svc.users().settings().updateVacation(userId="me", body=body).execute()
