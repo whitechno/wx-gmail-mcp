@@ -123,14 +123,14 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
 
     def create(
         svc: GmailService, labels: LabelMap, spec: FilterSpec
-    ) -> tuple[str, FilterSpec, list[str]]:
+    ) -> tuple[str, FilterSpec, LabelMap, list[str]]:
         """Create missing labels, then the filter.
 
-        Returns the new filter id, the spec with the created labels' ids
-        (the caller must apply with this one, not the original) and the
-        lines describing it. The caller applies afterwards, so the filter
-        exists before the apply starts and mail arriving meanwhile is still
-        caught.
+        Returns the new filter id, the spec with the created labels' ids,
+        a label map that knows them (the caller must apply and report with
+        these two, not the originals) and the lines describing the filter.
+        The caller applies afterwards, so the filter exists before the
+        apply starts and mail arriving meanwhile is still caught.
         """
         spec, note = filters.create_missing(svc, spec)
         if note:
@@ -148,7 +148,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         lines = filters.spec_text(spec, labels)
         if note:
             lines.append(note)
-        return filter_id, spec, lines
+        return filter_id, spec, labels, lines
 
     def apply_text(
         svc: GmailService, labels: LabelMap, spec: FilterSpec, apply_limit: int
@@ -234,7 +234,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         spec = filters.plan_filter(req, labels, create_missing_labels)
         if dry_run:
             return preview(svc, labels, spec, apply, apply_limit, "create the filter")
-        filter_id, spec, lines = create(svc, labels, spec)
+        filter_id, spec, labels, lines = create(svc, labels, spec)
         lines.insert(0, f"Created filter {filter_id}.")
         if apply:
             lines.append(apply_text(svc, labels, spec, apply_limit))
@@ -243,7 +243,11 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
     def delete_filter(account: str, filter_ids: Sequence[str]) -> str:
         """Delete filters by id (up to 100). Each is shown as it was before
         deletion; the mail it labelled is untouched."""
-        ids = require_ids(list(filter_ids), "filter_ids", cap=MAX_FILTER_IDS)
+        ids = list(dict.fromkeys(require_ids(list(filter_ids), "filter_ids")))
+        if len(ids) > MAX_FILTER_IDS:
+            raise WxGmailError(
+                f"filter_ids holds {len(ids)} ids; the cap is {MAX_FILTER_IDS}."
+            )
         svc = service(account)
         labels = LabelMap.fetch(svc)
         lines: list[str] = []
@@ -334,7 +338,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             return preview(
                 svc, labels, spec, apply, apply_limit, "replace the filter", current
             )
-        new_id, spec, lines = create(svc, labels, spec)
+        new_id, spec, labels, lines = create(svc, labels, spec)
         try:
             gmail.delete_filter(svc, filter_id)
         except Exception as e:

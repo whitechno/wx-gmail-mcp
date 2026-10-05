@@ -12,6 +12,7 @@ from .conftest import LABELS, call
 from .fake_gmail import FakeGmail
 from .test_bulk import get_by_id, paged_list
 from .test_tools_filters import FILTER_A, FILTER_B, filters_server
+from .test_tools_filters_create import _learns_label
 
 CREATED = {"id": "ANe1Bmj-new", "criteria": {}, "action": {}}
 FILTER_A_TEXT = (
@@ -287,10 +288,9 @@ def test_replace_filter_with_missing_labels(tmp_path: Path) -> None:
     assert "  do: add wx-test/new\n" in text
     assert "Labels to create: wx-test/new.\n" in text
     assert fake.calls_to("users.labels.create") == []
-    # A real run with apply relabels with the id the label got.
-    fake = _fake(
-        ["m1"], **{"users.labels.create": {"id": "Label_10", "name": "wx-test/new"}}
-    )
+    # A real run with apply relabels with the id the label got, and the
+    # report names it.
+    fake = _fake(["m1"], **_learns_label("Label_10", "wx-test/new"))
     text = call(
         filters_server(tmp_path, fake),
         "replace_filter",
@@ -303,5 +303,24 @@ def test_replace_filter_with_missing_labels(tmp_path: Path) -> None:
         dry_run=False,
     )
     assert "Created labels: wx-test/new (Label_10).\n" in text
+    assert text.endswith(
+        "Existing mail: Modified 1 message matching 'from:(news@example.com)': "
+        "added wx-test/new.\n"
+        "Sample:\n"
+        "  [m1] Fri, 02 Oct 2026 10:00:00 +0000 | Sender <sender@example.com> | "
+        "subj m1"
+    )
     (batch,) = fake.calls_to("users.messages.batchModify")
     assert batch["body"]["addLabelIds"] == ["Label_10"]
+
+
+def test_delete_filter_dedupes_ids(tmp_path: Path) -> None:
+    fake = _fake()
+    text = call(
+        filters_server(tmp_path, fake),
+        "delete_filter",
+        account="work",
+        filter_ids=["ANe1Bmj-a", "ANe1Bmj-a"],
+    )
+    assert text.startswith("Deleted 1 filter:\n")
+    assert len(fake.calls_to("users.settings.filters.delete")) == 1
