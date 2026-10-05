@@ -25,8 +25,10 @@ def _labels_line(labels: LabelMap, msg: dict[str, Any]) -> str:
 
 def _snippet(resource: dict[str, Any]) -> str:
     """Gmail snippets arrive HTML-escaped and, in marketing mail, padded
-    with invisible characters."""
-    return render.clean_text(html.unescape(str(resource.get("snippet", "") or "")))
+    with invisible characters separated by spaces; the spaces they leave
+    behind are collapsed too."""
+    text = render.clean_text(html.unescape(str(resource.get("snippet", "") or "")))
+    return " ".join(text.split())
 
 
 def format_hit(labels: LabelMap, msg: dict[str, Any]) -> str:
