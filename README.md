@@ -11,7 +11,7 @@ controlled access to *several* Gmail accounts at once.
   filters, and optionally apply a new filter to existing mail (dry run
   first).
 - **Bulk operations with previews.** Relabel, archive or mark read by
-  query or id list; dry run is the default.
+  id list, or by query with a dry run as the default.
 - **You choose the power level.** Env gates switch sending, settings
   and trash/delete on or off; each gate requests only the OAuth scope
   it needs.
@@ -103,7 +103,8 @@ command.
 ## Tools
 
 25 tools with no gate, 41 with all three. Every mailbox tool takes an
-`account` alias; results are plain text.
+`account` alias; results are plain text. The Gate column names the
+gate from the table above that registers the group.
 
 | Group | Tools | Gate |
 |---|---|---|
