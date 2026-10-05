@@ -180,7 +180,8 @@ def test_gcloud_project_creates_and_enables(
     assert "ok   project: my-proj created" in out
     assert "ok   gmail api: enabled on my-proj" in out
     assert "auth/audience?project=my-proj" in out
-    assert "projects create my-proj --name=wx-gmail-mcp" in gcloud.calls
+    # Display name = id: two projects named "wx-gmail-mcp" look alike in the console.
+    assert "projects create my-proj --name=my-proj" in gcloud.calls
     assert "services enable gmail.googleapis.com --project=my-proj" in gcloud.calls
     # Every project-scoped call names the project; the default is never used.
     assert all(

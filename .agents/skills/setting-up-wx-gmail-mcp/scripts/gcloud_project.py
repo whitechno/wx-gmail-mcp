@@ -6,10 +6,11 @@
     gcloud_project.py PROJECT_ID --enable   also enable the Gmail API
     gcloud_project.py PROJECT_ID --urls     print the console URLs only
 
-Every gcloud call carries ``--project``; the user's default project is
-never read or changed. The consent screen and the OAuth client cannot be
-created with gcloud: the script prints the console URLs for them.
-Exit 1 when gcloud is missing, not logged in, or a step fails.
+Every call names the project (positional or ``--project``); the user's
+default project is never read or changed. The consent screen and the
+OAuth client cannot be created with gcloud: the script prints the console
+URLs for them. Exit 1 when gcloud is missing or not logged in, when a step
+fails, and in report mode when the project or the API is still missing.
 """
 
 from __future__ import annotations
@@ -77,9 +78,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
     else:
-        code, _, err = gcloud(
-            path, "projects", "create", project, "--name=wx-gmail-mcp"
-        )
+        code, _, err = gcloud(path, "projects", "create", project, f"--name={project}")
         if code != 0:
             print(
                 f"FAIL project: create failed: {err.splitlines()[-1] if err else code}"

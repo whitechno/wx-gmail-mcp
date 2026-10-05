@@ -96,10 +96,15 @@ scopes when you authorize.
 
 ```bash
 mkdir -p ~/.wx-gmail-mcp && chmod 700 ~/.wx-gmail-mcp
-mv ~/Downloads/client_secret_*.json ~/.wx-gmail-mcp/oauth_client.json
+mv ~/Downloads/client_secret_<id>.json ~/.wx-gmail-mcp/oauth_client.json
 chmod 600 ~/.wx-gmail-mcp/oauth_client.json
 wx-gmail-mcp --doctor
 ```
+
+Or let the skill's script do it, which also checks that the file is a
+Desktop app client: `python3
+.agents/skills/setting-up-wx-gmail-mcp/scripts/install_client_json.py
+~/Downloads/client_secret_<id>.json` (from a clone of the repo).
 
 (`WX_GMAIL_MCP_HOME` moves the whole directory elsewhere; set it for
 every command and in the registration.) The doctor's `oauth client`

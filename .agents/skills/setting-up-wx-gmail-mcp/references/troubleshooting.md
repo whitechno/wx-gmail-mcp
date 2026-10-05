@@ -18,8 +18,10 @@ every `FAIL` line names its fix. Then the cases below.
   controls > App access control), or use a personal account.
 - **"The OAuth client was not found" / invalid_client / error 401**: the
   client JSON belongs to a deleted client or project, or it is a Web
-  application client. Re-download the Desktop client's JSON;
-  `scripts/install_client_json.py` checks the shape.
+  application client. Download the Desktop client's JSON again and run
+  `scripts/install_client_json.py <downloaded file>` (with the path:
+  without one the script keeps a valid installed file); it checks the
+  shape and keeps the old file as `oauth_client.json.previous`.
 - **redirect_uri_mismatch**: not a Desktop app client. Only that type
   allows the loopback redirect the server uses.
 - **Browser never opens / "could not locate runnable browser"**: run
