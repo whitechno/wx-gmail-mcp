@@ -115,6 +115,12 @@ the project uses [Semantic Versioning](https://semver.org/).
   `WX_GMAIL_ALLOW_SENDING=true`, and only if the account granted the
   send scope), both with `cc`, `bcc`, `html`, `reply_to` and
   `attachments` read from `~/.wx-gmail-mcp/outbox/`.
+- CLI: `--print-config <client>` prints a ready-to-paste registration
+  block for `claude-code` (a `claude mcp add` command), `claude-desktop`,
+  `codex` (TOML for `config.toml`), `gemini` and `cursor` (JSON), with
+  the absolute path of the running executable, the gates that are on in
+  the current environment and the home override, if any; a line on
+  stderr says where the block goes. Nothing secret is read or printed.
 - CLI: `--auth <alias> --email <address>` authorizes an account in the
   browser; `--list` shows accounts, token health, granted scopes and
   gates that are on but not granted; with no command the process serves
