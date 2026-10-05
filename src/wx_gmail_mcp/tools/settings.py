@@ -8,41 +8,12 @@ would need the sharing scope.
 
 from __future__ import annotations
 
-from typing import Any
-
 from mcp.server.mcpserver import MCPServer
 
-from wx_gmail_mcp import auth, gmail, vacation
+from wx_gmail_mcp import auth, gmail, sendas, vacation
 from wx_gmail_mcp.config import SCOPE_SETTINGS_BASIC
-from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.gmail import GmailService, Runtime
 from wx_gmail_mcp.safety import register_tool
-
-
-def vacation_body(
-    enabled: bool,
-    subject: str,
-    body: str,
-    html: str,
-    start_date: str,
-    end_date: str,
-    contacts_only: bool,
-    domain_only: bool,
-    timezone: str,
-) -> dict[str, Any]:
-    """The complete resource ``updateVacation`` replaces the current one with."""
-    if enabled and not body.strip() and not html.strip():
-        raise WxGmailError("An enabled responder needs a message: body or html.")
-    zone = vacation.resolve_zone(timezone)
-    return {
-        "enableAutoReply": enabled,
-        "responseSubject": subject,
-        "responseBodyPlainText": body,
-        "responseBodyHtml": html,
-        "restrictToContacts": contacts_only,
-        "restrictToDomain": domain_only,
-        **vacation.period(start_date, end_date, zone),
-    }
 
 
 def register(mcp: MCPServer, rt: Runtime) -> None:
@@ -75,21 +46,22 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         """Replace the vacation responder. Gmail has no partial update: every
         field left out is cleared, so get_vacation first and pass what must
         stay. `enabled` turns replies on or off; the message is `body`
-        (plain) and/or `html`, required when enabled. `start_date` and
+        (plain) or `html` (Gmail keeps only `html` when both are given),
+        required when enabled. `start_date` and
         `end_date` (YYYY-MM-DD) are the first and last day, inclusive, at
         midnight in the machine's zone or the IANA `timezone`; without them
         the responder runs until turned off. `contacts_only` and
         `domain_only` (Google Workspace) limit who gets a reply."""
-        resource = vacation_body(
+        resource = vacation.body(
             enabled,
             subject,
-            body,
-            html,
-            start_date,
-            end_date,
-            contacts_only,
-            domain_only,
-            timezone,
+            plain=body,
+            html=html,
+            start_date=start_date,
+            end_date=end_date,
+            contacts_only=contacts_only,
+            domain_only=domain_only,
+            timezone=timezone,
         )
         svc = service(account)
         updated = gmail.update_vacation(svc, resource)
@@ -98,5 +70,31 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             updated, zone, timezone
         )
 
+    def list_send_as(account: str) -> str:
+        """List the account's send-as identities (the primary address and its
+        aliases): display name, reply-to, primary/default flags, verification
+        status and the signature as stored (HTML)."""
+        identities = gmail.list_send_as(service(account))
+        if not identities:
+            return "No send-as identities."
+        n = len(identities)
+        head = f"{n} send-as identit{'y' if n == 1 else 'ies'}:"
+        return "\n".join([head, *(sendas.text(i) for i in identities)])
+
+    def set_signature(account: str, signature: str, send_as_email: str = "") -> str:
+        """Set the signature of one send-as identity: the primary address
+        unless `send_as_email` names an alias from list_send_as (Gmail lets
+        only Workspace service accounts change an alias, so expect a
+        refusal on a personal account). `signature` is HTML (Gmail sanitizes
+        it); an empty string removes it. Nothing else changes."""
+        svc = service(account)
+        identity = sendas.find(gmail.list_send_as(svc), send_as_email)
+        target = sendas.address(identity)
+        updated = gmail.patch_send_as(svc, target, {"signature": signature})
+        verb = "Set" if signature.strip() else "Cleared"
+        return f"{verb} the signature of {target}.\n" + sendas.text(updated)
+
     register_tool(mcp, get_vacation)
     register_tool(mcp, set_vacation)
+    register_tool(mcp, list_send_as)
+    register_tool(mcp, set_signature)

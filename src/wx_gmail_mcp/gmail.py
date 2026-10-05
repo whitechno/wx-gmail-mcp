@@ -338,3 +338,24 @@ def get_vacation(svc: GmailService) -> dict[str, Any]:
 def update_vacation(svc: GmailService, body: dict[str, Any]) -> dict[str, Any]:
     """``settings.updateVacation``: replaces the whole resource (a PUT)."""
     return svc.users().settings().updateVacation(userId="me", body=body).execute()
+
+
+def list_send_as(svc: GmailService) -> list[dict[str, Any]]:
+    """``settings.sendAs.list``: the primary identity and every alias."""
+    return (
+        svc.users().settings().sendAs().list(userId="me").execute().get("sendAs", [])
+        or []
+    )
+
+
+def patch_send_as(
+    svc: GmailService, send_as_email: str, body: dict[str, Any]
+) -> dict[str, Any]:
+    """``settings.sendAs.patch``: changes only the fields in ``body``."""
+    return (
+        svc.users()
+        .settings()
+        .sendAs()
+        .patch(userId="me", sendAsEmail=send_as_email, body=body)
+        .execute()
+    )

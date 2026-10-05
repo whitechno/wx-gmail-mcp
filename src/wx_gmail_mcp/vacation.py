@@ -84,6 +84,33 @@ def period(start_date: str, end_date: str, zone: tzinfo | None) -> dict[str, str
     return fields
 
 
+def body(
+    enabled: bool,
+    subject: str,
+    plain: str,
+    html: str,
+    start_date: str,
+    end_date: str,
+    contacts_only: bool,
+    domain_only: bool,
+    timezone: str,
+) -> dict[str, Any]:
+    """The complete resource ``updateVacation`` replaces the current one with.
+    Gmail stores one message: when ``html`` is given it drops ``plain``."""
+    if enabled and not plain.strip() and not html.strip():
+        raise WxGmailError("An enabled responder needs a message: body or html.")
+    zone = resolve_zone(timezone)
+    return {
+        "enableAutoReply": enabled,
+        "responseSubject": subject,
+        "responseBodyPlainText": plain,
+        "responseBodyHtml": html,
+        "restrictToContacts": contacts_only,
+        "restrictToDomain": domain_only,
+        **period(start_date, end_date, zone),
+    }
+
+
 def _block(name: str, value: str) -> str:
     """``  name: first line`` with continuation lines aligned under it."""
     first, *rest = value.splitlines() or [""]
