@@ -1,7 +1,8 @@
 """Filter tools, registered only with WX_GMAIL_ALLOW_SETTINGS=true.
 
-Every tool checks that the account granted ``gmail.settings.basic``: the
-settings endpoints accept no other scope, the full mail scope included.
+Every tool checks that the account granted ``gmail.settings.basic``. The
+write endpoints accept no other scope, the full mail scope included; the
+read tools apply the same check so the gate means one thing.
 """
 
 from __future__ import annotations

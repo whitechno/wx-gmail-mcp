@@ -9,7 +9,7 @@ from typing import Any
 from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import MCPServer
 
-from wx_gmail_mcp import gmail, mime, safety
+from wx_gmail_mcp import gmail, mime, render, safety
 from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.gmail import Runtime, header
 from wx_gmail_mcp.labels import LabelMap
@@ -24,7 +24,9 @@ def _labels_line(labels: LabelMap, msg: dict[str, Any]) -> str:
 
 
 def _snippet(resource: dict[str, Any]) -> str:
-    return html.unescape(str(resource.get("snippet", "") or ""))
+    """Gmail snippets arrive HTML-escaped and, in marketing mail, padded
+    with invisible characters."""
+    return render.clean_text(html.unescape(str(resource.get("snippet", "") or "")))
 
 
 def format_hit(labels: LabelMap, msg: dict[str, Any]) -> str:

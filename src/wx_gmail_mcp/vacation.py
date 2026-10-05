@@ -16,6 +16,7 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from wx_gmail_mcp.errors import WxGmailError
+from wx_gmail_mcp.render import block
 
 DATE_FORMAT = "YYYY-MM-DD"
 
@@ -111,13 +112,6 @@ def body(
     }
 
 
-def _block(name: str, value: str) -> str:
-    """``  name: first line`` with continuation lines aligned under it."""
-    first, *rest = value.splitlines() or [""]
-    pad = " " * (len(name) + 4)
-    return "\n".join([f"  {name}: {first}", *(pad + line for line in rest)])
-
-
 def _when(moment: datetime, end: bool) -> str:
     """A midnight reads as a day (the last day for the end instant); any
     other instant reads with its time and zone."""
@@ -139,9 +133,9 @@ def text(settings: dict[str, Any], zone: tzinfo | None, zone_name: str = "") -> 
     if subject:
         lines.append(f"  subject: {subject}")
     if plain:
-        lines.append(_block("body", plain))
+        lines.append(block("body", plain))
     if html:
-        lines.append(_block("html", html))
+        lines.append(block("html", html))
     start = from_millis(settings.get("startTime"), zone)
     end = from_millis(settings.get("endTime"), zone)
     if start:

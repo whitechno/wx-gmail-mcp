@@ -61,7 +61,9 @@ list_accounts()
 
 An account authorized with fewer gates than the server runs with is a
 valid setup: the warning is informational, and that account refuses the
-gated tools with the same hint. A token that cannot be refreshed shows
+gated tools with the same hint. Several unmet gates share one warning
+line (`... WX_GMAIL_ALLOW_SETTINGS and WX_GMAIL_ALLOW_DELETE are on but
+the settings.basic and full scopes are not granted; re-run: ...`). A token that cannot be refreshed shows
 `[needs re-auth: ...]` with the command to run.
 
 ### `add_account`
@@ -88,7 +90,8 @@ Authorized 'work' -> you@example.com. Token saved. Scopes: modify, readonly, set
 
 If the user signs in as a different address, the result says so and the
 token is stored for that address. If the user unticks a scope on Google's
-consent screen, the result warns which gate's tools will fail.
+consent screen, the result warns which gate's tools will fail. Re-using
+an alias replaces its token, and the result notes the address it held.
 
 ### `remove_account`
 
@@ -641,6 +644,9 @@ Deletes messages or threads for good. Guardrails, all server-side:
   in one `messages.batchDelete`, for threads too (a reply that arrives
   between the audit and the delete is not swept away);
 - the dry run is the default and shows the trail without deleting.
+
+With `require_trashed=false`, a thread that holds no messages is skipped
+and the result says so (`... 2 threads (1 empty thread skipped)`).
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
@@ -1308,8 +1314,9 @@ you@example.com (primary, default)
 ### `set_signature`
 
 Sets the signature of one identity through `sendAs.patch`, touching
-nothing else. `signature` is HTML (Gmail sanitizes it); an empty string
-removes it. The primary identity is the default target.
+nothing else. `signature` is HTML (Gmail sanitizes it); an empty or
+whitespace-only string removes it. The primary identity is the default
+target.
 
 **Aliases on a personal account are refused.** Google allows
 `sendAs.patch` on an alias only for Workspace service accounts with

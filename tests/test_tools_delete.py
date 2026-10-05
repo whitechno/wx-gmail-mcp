@@ -214,9 +214,9 @@ def test_batch_delete_failure_keeps_the_audit_trail(tmp_path: Path) -> None:
         dry_run=False,
     )
     assert text.splitlines() == [
-        "The delete of 1 message failed with HTTP 500: Backend Error; they may "
+        "The delete of 1 message failed with HTTP 500: Backend Error; it may "
         "or may not have been deleted. A retry audits again and reports a 404 "
-        "for anything already gone. The items were:",
+        "for anything already gone. The item was:",
         LINE_M1,
     ]
 
@@ -318,3 +318,21 @@ def test_partially_trashed_thread_is_refused(tmp_path: Path) -> None:
     )
     assert text == "Error: Nothing to delete: the threads hold no messages."
     assert fake.calls_to("users.messages.batchDelete") == []
+
+
+def test_delete_threads_skips_empty_ones_in_the_count(tmp_path: Path) -> None:
+    fake = _threads(t1=_thread("t1", ("TRASH",)), t2={"id": "t2", "messages": []})
+    text = call(
+        _server(tmp_path, fake),
+        "delete_permanently",
+        account="work",
+        ids=["t1", "t2"],
+        kind="thread",
+        require_trashed=False,
+        dry_run=False,
+    )
+    lines = text.splitlines()
+    assert lines[0] == "Permanently deleted 1 thread (1 empty thread skipped):"
+    assert lines[1] == "[thread t1] 1 message"
+    assert lines[3] == "[thread t2] 0 messages"
+    assert fake.calls_to("users.messages.batchDelete")[0]["body"] == {"ids": ["t1m1"]}

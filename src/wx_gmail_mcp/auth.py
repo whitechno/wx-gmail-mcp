@@ -129,8 +129,25 @@ def scopes_text(granted: frozenset[str]) -> str:
     return ", ".join(sorted(scope_label(s) for s in granted)) or "(none)"
 
 
+def _join(items: list[str]) -> str:
+    """``a``, ``a and b``, ``a, b and c``."""
+    if len(items) <= 1:
+        return "".join(items)
+    return ", ".join(items[:-1]) + f" and {items[-1]}"
+
+
+def gate_warning(gates: list[Gate]) -> str:
+    """One clause for every gate that is on but not granted."""
+    envs = _join([g.env for g in gates])
+    scopes = _join([scope_label(g.scope) for g in gates])
+    if len(gates) == 1:
+        return f"{envs} is on but the {scopes} scope is not granted"
+    return f"{envs} are on but the {scopes} scopes are not granted"
+
+
 def account_status_lines(settings: Settings) -> list[str]:
-    """One line per account: alias, email, health, scopes, gate warnings.
+    """One line per account: alias, email, health, scopes; one warning line
+    when gates are on that the account has not granted.
 
     Shared by ``--list`` and the ``list_accounts`` tool.
     """
@@ -149,10 +166,10 @@ def account_status_lines(settings: Settings) -> list[str]:
             continue
         granted = granted_scopes(creds)
         lines.append(f"- {alias}: {email} [healthy] scopes: {scopes_text(granted)}")
-        for gate in ungranted_gates(settings, granted):
+        missing = ungranted_gates(settings, granted)
+        if missing:
             lines.append(
-                f"    warning: {gate.env} is on but the "
-                f"{scope_label(gate.scope)} scope is not granted; re-run: "
+                f"    warning: {gate_warning(missing)}; re-run: "
                 f"{reauth_command(settings, alias, email)}"
             )
     return lines
@@ -256,6 +273,7 @@ def run_oauth(
     """Authorize one account and store its token under ``alias``."""
     accounts.check_alias(alias)
     accounts.ensure_private_dir(settings.home)
+    previous = accounts.load_accounts(settings).get(alias, "")
     if not settings.client_file.exists():
         raise WxGmailError(
             f"Missing OAuth client at {settings.client_file}. Download a Google "
@@ -273,6 +291,8 @@ def run_oauth(
         actual = email
         notes.append(f"Note: could not confirm the address with Gmail ({e}).")
     accounts.set_account(settings, alias, actual)
+    if previous:
+        notes.append(f"Note: replaced the token '{alias}' held for {previous}.")
     granted_set = frozenset(granted)
     for gate in ungranted_gates(settings, granted_set):
         notes.append(

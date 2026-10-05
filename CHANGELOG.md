@@ -174,6 +174,23 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- `list_accounts` and `--list` print one warning line per account for
+  every gate that is on but not granted, naming the gates and scopes
+  together with one re-auth command, instead of a line per gate.
+- `search` and `search_threads` strip invisible characters from
+  snippets (zero-width spaces and joiners, byte order marks, soft
+  hyphens and the combining grapheme joiner that marketing mail pads
+  snippets with).
+- `--auth` and `add_account` say so when the alias already existed and
+  its token was replaced.
+- `set_signature` with a whitespace-only `signature` clears the
+  signature instead of storing the blanks.
+- `delete_permanently` on threads counts only threads that hold
+  messages and says how many empty threads it skipped; the wording after
+  a failed `batchDelete` of one item is singular.
+- SECURITY.md spells out what each gate requests, that the full mail
+  scope of the delete gate also covers sending, and why trash and
+  untrash sit behind that gate.
 - Tool docstrings trimmed to what a model needs per call; the examples
   that `search`, `modify_labels` and `create_filter` carried moved to
   `docs/TOOLS.md`.

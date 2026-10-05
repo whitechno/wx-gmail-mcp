@@ -231,3 +231,11 @@ def test_set_signature_unknown_address_and_api_error(tmp_path: Path) -> None:
     assert call(mcp, "set_signature", account="work", signature="x") == (
         "Gmail API error: HTTP 403: Forbidden"
     )
+
+
+def test_set_signature_whitespace_only_clears(tmp_path: Path) -> None:
+    fake = _fake(**{"users.settings.sendAs.patch": patched})
+    mcp = settings_server(tmp_path, fake)
+    text = call(mcp, "set_signature", account="work", signature="  \n\t ")
+    assert fake.calls_to("users.settings.sendAs.patch")[-1]["body"] == {"signature": ""}
+    assert text.startswith("Cleared the signature of you@example.com.\n")
