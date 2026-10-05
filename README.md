@@ -104,7 +104,9 @@ command.
 
 25 tools with no gate, 41 with all three. Every mailbox tool takes an
 `account` alias; results are plain text. The Gate column names the
-gate from the table above that registers the group.
+gate from the table above that registers the group. Parameters,
+defaults, worked examples and known behaviors per tool are in
+[docs/TOOLS.md](docs/TOOLS.md).
 
 | Group | Tools | Gate |
 |---|---|---|

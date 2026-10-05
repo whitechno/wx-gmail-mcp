@@ -82,11 +82,10 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         bcc: str = "",
         attachments: Sequence[str] = (),
     ) -> str:
-        """Reply to a message in its conversation, immediately and with no
-        confirmation step. Goes to Reply-To or From (to the original
-        recipients when `account` sent it); `reply_all` also copies the other
-        recipients. Subject gets `Re:`; `quote` appends the original text
-        (HTML rendered as text) as a quoted block; `attachments` are outbox
+        """Reply in the conversation; sends immediately, no confirmation step.
+        Goes to Reply-To or From (to the original recipients when `account`
+        sent it); `reply_all` also copies the other recipients. Subject gets
+        `Re:`; `quote` appends the original text; `attachments` are outbox
         file names."""
         svc = service(account)
         if not body.strip():
@@ -128,11 +127,11 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         include_attachments: bool = True,
         attachments: Sequence[str] = (),
     ) -> str:
-        """Forward a message, immediately and with no confirmation step.
-        Subject gets `Fwd:`. By default the original text follows `body`
-        under a forwarded-message header and its attachments are re-attached
-        (`include_attachments`); `as_attachment` sends the complete original
-        as a message/rfc822 file instead. `attachments` are outbox names."""
+        """Forward a message; sends immediately, no confirmation step. Subject
+        gets `Fwd:`. The original text follows `body` with its attachments
+        re-attached (`include_attachments`), or `as_attachment` sends the
+        whole original as a message/rfc822 file. `attachments` are outbox
+        names."""
         svc = service(account)
         orig = compose.load_original(svc, message_id)
         cut = False

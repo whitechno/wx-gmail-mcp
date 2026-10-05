@@ -8,6 +8,15 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `docs/TOOLS.md`: the full tool catalogue, one section per group, each
+  tool with its gate, scope, parameters, defaults, worked examples and
+  the behaviors found in live use (untrash does not restore INBOX, an
+  identical `replace_filter` is refused by Gmail, `set_vacation`
+  replaces the whole responder and Gmail keeps only the HTML,
+  `set_signature` on an alias is refused for personal accounts,
+  attachment ids rotate so part numbers are the stable handle, the
+  `delete_permanently` audit trail). A test keeps its tool list and
+  every parameter table equal to the server's catalogue.
 - README for the first release: what the server is and when a hosted
   connector is the better choice, quick start with the setup skill or
   by hand, the gates table, the tool overview by group, security notes.
@@ -165,6 +174,9 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Tool docstrings trimmed to what a model needs per call; the examples
+  that `search`, `modify_labels` and `create_filter` carried moved to
+  `docs/TOOLS.md`.
 - `send_message`, `create_draft`, `update_draft`, `reply` and `forward`
   upload the message as `message/rfc822` media (resumable) instead of a
   base64 `raw` field in the JSON body, which Gmail caps at 5 MB; the

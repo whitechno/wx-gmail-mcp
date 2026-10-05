@@ -18,15 +18,13 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
     def add_account(alias: str, email: str) -> str:
         """Authorize a Gmail account in a browser on the server's machine and
         store its token under `alias`. If the client blocks the browser flow,
-        the user runs `wx-gmail-mcp --auth <alias> --email <address>` in a
-        terminal instead."""
+        the user runs `wx-gmail-mcp --auth <alias> --email <address>` instead."""
         return auth.run_oauth(rt.settings, alias, email).text()
 
     def remove_account(alias: str, revoke: bool = False) -> str:
-        """Forget an account: delete its local token and alias. With
-        `revoke=true`, also revoke the grant at Google (this cuts off every
-        alias that points at the same address); otherwise the grant stays
-        until the user removes it at myaccount.google.com/permissions."""
+        """Forget an account: delete its local token and alias. `revoke=true`
+        also revokes the grant at Google (for every alias of that address);
+        otherwise it stays until removed at myaccount.google.com/permissions."""
         accounts.check_alias(alias)
         if alias not in accounts.load_accounts(rt.settings):
             return (
