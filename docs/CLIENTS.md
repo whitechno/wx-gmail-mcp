@@ -41,8 +41,10 @@ wins.
    prints lies in uv's cache, which a prune can remove; the command
    warns about that. `uv tool install` gives a stable path.
 
-3. After registering, ask the agent to call `list_accounts`, then a
-   read-only `search`. Both need no gate.
+3. After registering, `wx-gmail-mcp --doctor` lists the registrations
+   it found in each client's config file next to the token and scope
+   checks. Then ask the agent to call `list_accounts` and a read-only
+   `search`. Both need no gate.
 
 The examples below show the executable as `~/.local/bin/wx-gmail-mcp`
 (where `uv tool install` puts it) or `/path/to/wx-gmail-mcp`;

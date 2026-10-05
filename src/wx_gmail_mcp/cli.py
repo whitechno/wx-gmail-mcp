@@ -2,8 +2,8 @@
 
 ``--auth`` and ``--list`` run in a terminal (OAuth opens a browser, and
 an MCP client's sandbox may block the loopback flow). ``--print-config``
-prints the registration block for a client. With no command the process
-serves MCP over stdio. ``--doctor`` arrives in a later phase.
+prints the registration block for a client and ``--doctor`` checks the
+installation. With no command the process serves MCP over stdio.
 """
 
 from __future__ import annotations
@@ -12,11 +12,12 @@ import argparse
 import os
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from google.auth.exceptions import GoogleAuthError
 from googleapiclient.errors import HttpError
 
-from wx_gmail_mcp import __version__, auth, clients, server
+from wx_gmail_mcp import __version__, auth, clients, doctor, server
 from wx_gmail_mcp.config import Settings
 from wx_gmail_mcp.errors import WxGmailError
 
@@ -42,6 +43,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     command.add_argument(
         "--list", action="store_true", help="list accounts, token health, scopes"
+    )
+    command.add_argument(
+        "--doctor",
+        action="store_true",
+        help=(
+            "check the installation: tools, home directory, OAuth client, "
+            "accounts and scopes, client registrations; exit 1 on any failure"
+        ),
     )
     command.add_argument(
         "--print-config",
@@ -79,6 +88,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(block, end="")
             print(f"# {hint}", file=sys.stderr)
             return 0
+        if args.doctor:
+            loc = doctor.Locator(Path.home(), Path.cwd(), os.environ)
+            checks = doctor.run_doctor(settings, os.environ, loc)
+            print(doctor.doctor_text(checks))
+            return 1 if any(c.failed for c in checks) else 0
     except WxGmailError as e:
         print(f"{PROG}: error: {e}", file=sys.stderr)
         return 1
