@@ -207,6 +207,24 @@ def batch_modify(
     return len(message_ids)
 
 
+def trash_message(svc: GmailService, message_id: str) -> dict[str, Any]:
+    """``messages.trash``: adds TRASH; Gmail purges Trash after 30 days."""
+    return svc.users().messages().trash(userId="me", id=message_id).execute()
+
+
+def untrash_message(svc: GmailService, message_id: str) -> dict[str, Any]:
+    return svc.users().messages().untrash(userId="me", id=message_id).execute()
+
+
+def trash_thread(svc: GmailService, thread_id: str) -> dict[str, Any]:
+    """``threads.trash``: every message in the thread goes to Trash."""
+    return svc.users().threads().trash(userId="me", id=thread_id).execute()
+
+
+def untrash_thread(svc: GmailService, thread_id: str) -> dict[str, Any]:
+    return svc.users().threads().untrash(userId="me", id=thread_id).execute()
+
+
 def send_raw(svc: GmailService, raw: str) -> dict[str, Any]:
     """``messages.send`` of a base64url RFC 822 message."""
     return svc.users().messages().send(userId="me", body={"raw": raw}).execute()

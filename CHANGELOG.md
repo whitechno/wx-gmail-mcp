@@ -8,6 +8,11 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `trash` and `untrash`, registered only with `WX_GMAIL_ALLOW_DELETE=true`
+  and only usable by accounts that granted the full mail scope. Both take
+  an id list of messages (default) or whole threads (`kind="thread"`), up
+  to 100 per call, one API call each; a failure midway reports how many
+  were done. Trash is reversible; Gmail purges it after 30 days.
 - `list_filters` and `get_filter`, registered only with
   `WX_GMAIL_ALLOW_SETTINGS=true` and only usable by accounts that granted
   the `gmail.settings.basic` scope. Each filter is shown with its

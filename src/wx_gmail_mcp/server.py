@@ -23,6 +23,7 @@ from wx_gmail_mcp.tools import (
     organize,
     read,
     send,
+    trash,
 )
 
 SERVER_NAME = "wx-gmail-mcp"
@@ -39,7 +40,7 @@ TOOL_GROUPS: tuple[tuple[GateCheck, tuple[ModuleType, ...]], ...] = (
     (lambda _: True, (accounts, read, labels, organize, drafts)),
     (lambda g: g.sending, (send,)),
     (lambda g: g.settings, (filters,)),
-    (lambda g: g.delete, ()),
+    (lambda g: g.delete, (trash,)),
 )
 
 
