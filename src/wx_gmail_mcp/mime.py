@@ -9,6 +9,7 @@ import mimetypes
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from email import message_from_bytes, policy
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
@@ -110,7 +111,8 @@ class Attachment:
 
 
 def decode_attachment(data: str) -> bytes:
-    """Decode the base64url ``data`` of ``attachments.get``."""
+    """Decode base64url ``data`` from ``attachments.get`` or a ``raw``
+    message."""
     try:
         return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
     except (binascii.Error, ValueError) as e:
@@ -174,6 +176,31 @@ def attachment_type(filename: str) -> tuple[str, str]:
     return maintype, subtype
 
 
+@dataclass(frozen=True)
+class Blob:
+    """An attachment held in memory: a re-attached original attachment, or
+    a whole message (``message/rfc822``) when forwarding as attachment."""
+
+    filename: str
+    maintype: str
+    subtype: str
+    data: bytes
+
+
+def _attach_blob(msg: EmailMessage, blob: Blob) -> None:
+    if (blob.maintype, blob.subtype) == ("message", "rfc822"):
+        # A message part is nested, not base64-encoded (RFC 2046 §5.2.1).
+        inner = message_from_bytes(blob.data, policy=policy.default)
+        msg.add_attachment(inner, filename=blob.filename)
+        return
+    msg.add_attachment(
+        blob.data,
+        maintype=blob.maintype,
+        subtype=blob.subtype,
+        filename=blob.filename,
+    )
+
+
 def build_message(
     *,
     to: str,
@@ -183,6 +210,7 @@ def build_message(
     bcc: str = "",
     html: str = "",
     attachments: Sequence[Path] = (),
+    blobs: Sequence[Blob] = (),
     reply_to: str = "",
     in_reply_to: str = "",
     references: str = "",
@@ -191,7 +219,8 @@ def build_message(
 
     Gmail sets ``From`` to the authenticated account. ``html`` adds a
     text/html alternative next to the plain ``body``. ``attachments`` are
-    already-validated paths (see ``safety.outbox_path``).
+    already-validated paths (see ``safety.outbox_path``); ``blobs`` are
+    in-memory attachments added after them.
     """
     to = _require(to, "to")
     if not body and not html:
@@ -217,4 +246,6 @@ def build_message(
         msg.add_attachment(
             path.read_bytes(), maintype=maintype, subtype=subtype, filename=path.name
         )
+    for blob in blobs:
+        _attach_blob(msg, blob)
     return base64.urlsafe_b64encode(msg.as_bytes()).decode()

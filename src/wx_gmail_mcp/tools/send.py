@@ -1,7 +1,9 @@
 """Send tools, registered only with WX_GMAIL_ALLOW_SENDING=true.
 
-``send_message`` and ``send_draft``; ``reply`` and ``forward`` follow.
-Every tool checks the account's send scope first (``require_scope``).
+``send_message``, ``send_draft``, ``reply`` and ``forward``. Every tool
+checks the account's send scope first (``require_scope``). Replies and
+forwards stay in the original's conversation: Gmail's ``threadId`` plus
+``In-Reply-To``/``References`` (plan §5.7).
 """
 
 from __future__ import annotations
@@ -10,9 +12,10 @@ from collections.abc import Sequence
 
 from mcp.server.mcpserver import MCPServer
 
-from wx_gmail_mcp import auth, gmail
+from wx_gmail_mcp import auth, compose, gmail
 from wx_gmail_mcp.compose import build_raw
 from wx_gmail_mcp.config import SCOPE_SEND
+from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.gmail import GmailService, Runtime, header
 from wx_gmail_mcp.safety import register_tool
 
@@ -69,5 +72,97 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             f"message id={sent.get('id', '')} thread id={sent.get('threadId', '')}"
         )
 
+    def reply(
+        account: str,
+        message_id: str,
+        body: str,
+        reply_all: bool = False,
+        quote: bool = True,
+        cc: str = "",
+        bcc: str = "",
+        attachments: Sequence[str] = (),
+    ) -> str:
+        """Reply to a message in its conversation, immediately and with no
+        confirmation step. Goes to Reply-To or From (to the original
+        recipients when `account` sent it); `reply_all` also copies the other
+        recipients. Subject gets `Re:`; `quote` appends the original text as
+        a quoted block; `attachments` are outbox file names."""
+        svc = service(account)
+        if not body.strip():
+            raise WxGmailError("body is required.")
+        orig = compose.load_original(svc, message_id)
+        me = str(gmail.get_profile(svc).get("emailAddress", "") or "")
+        to, cc_all = compose.reply_recipients(orig, me, reply_all)
+        in_reply_to, references = compose.threading_headers(orig)
+        subject = compose.reply_subject(orig.subject)
+        raw = build_raw(
+            rt.settings,
+            to=to,
+            subject=subject,
+            body=compose.reply_body(body, orig, quote, rt.settings.max_body),
+            cc=compose.join_recipients(cc_all, cc),
+            bcc=bcc,
+            html="",
+            attachments=attachments,
+            reply_to="",
+            in_reply_to=in_reply_to,
+            references=references,
+        )
+        sent = gmail.send_raw(svc, raw, orig.thread_id)
+        return (
+            f"Replied to {orig.id} (To: {to} | Subj: {subject}). "
+            f"message id={sent.get('id', '')} thread id={sent.get('threadId', '')}"
+        )
+
+    def forward(
+        account: str,
+        message_id: str,
+        to: str,
+        body: str = "",
+        cc: str = "",
+        bcc: str = "",
+        as_attachment: bool = False,
+        include_attachments: bool = True,
+        attachments: Sequence[str] = (),
+    ) -> str:
+        """Forward a message, immediately and with no confirmation step.
+        Subject gets `Fwd:`. By default the original text follows `body`
+        under a forwarded-message header and its attachments are re-attached
+        (`include_attachments`); `as_attachment` sends the complete original
+        as a message/rfc822 file instead. `attachments` are outbox names."""
+        svc = service(account)
+        orig = compose.load_original(svc, message_id)
+        if as_attachment:
+            text = body.rstrip() or f"Forwarded message: {orig.subject}"
+            blobs = [compose.original_as_attachment(svc, orig)]
+        else:
+            text = compose.forward_body(body, orig, rt.settings.max_body)
+            blobs = (
+                compose.original_attachments(svc, orig) if include_attachments else []
+            )
+        in_reply_to, references = compose.threading_headers(orig)
+        subject = compose.forward_subject(orig.subject)
+        raw = build_raw(
+            rt.settings,
+            to=to,
+            subject=subject,
+            body=text,
+            cc=cc,
+            bcc=bcc,
+            html="",
+            attachments=attachments,
+            reply_to="",
+            in_reply_to=in_reply_to,
+            references=references,
+            blobs=blobs,
+        )
+        sent = gmail.send_raw(svc, raw, orig.thread_id)
+        return (
+            f"Forwarded {orig.id} (To: {to.strip()} | Subj: {subject}). "
+            f"message id={sent.get('id', '')} thread id={sent.get('threadId', '')}"
+        )
+
     register_tool(mcp, send_message)
     register_tool(mcp, send_draft)
+    register_tool(mcp, reply)
+    register_tool(mcp, forward)

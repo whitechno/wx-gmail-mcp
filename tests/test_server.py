@@ -42,7 +42,7 @@ ALWAYS_ON = {
     "update_draft",
     "delete_draft",
 }
-SENDING: set[str] = {"send_message", "send_draft"}
+SENDING: set[str] = {"send_message", "send_draft", "reply", "forward"}
 SETTINGS: set[str] = {
     "list_filters",
     "get_filter",

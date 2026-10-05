@@ -80,6 +80,35 @@ def test_attachments_are_added_with_guessed_type(tmp_path: Path) -> None:
     assert atts[1].get_content_type() == "application/octet-stream"
 
 
+def test_blobs_are_attached_after_files(tmp_path: Path) -> None:
+    note = tmp_path / "note.txt"
+    note.write_text("n")
+    inner = base64.urlsafe_b64decode(
+        mime.build_message(to="a@example.com", subject="inner", body="hello \u00e9")
+    )
+    msg = _parse(
+        mime.build_message(
+            to="a@example.com",
+            subject="s",
+            body="b",
+            attachments=[note],
+            blobs=[
+                mime.Blob("pic.png", "image", "png", b"\x89PNG"),
+                mime.Blob("inner.eml", "message", "rfc822", inner),
+            ],
+        )
+    )
+    atts = list(msg.iter_attachments())
+    assert [a.get_filename() for a in atts] == ["note.txt", "pic.png", "inner.eml"]
+    assert atts[1].get_content_type() == "image/png"
+    assert atts[1].get_payload(decode=True) == b"\x89PNG"
+    assert atts[2].get_content_type() == "message/rfc822"
+    assert atts[2]["Content-Transfer-Encoding"] != "base64"
+    nested = cast(EmailMessage, cast(list[EmailMessage], atts[2].get_payload())[0])
+    assert nested["Subject"] == "inner"
+    assert nested.get_content() == "hello \u00e9\n"
+
+
 def test_validation() -> None:
     with pytest.raises(WxGmailError, match="to is required"):
         mime.build_message(to=" ", subject="s", body="b")

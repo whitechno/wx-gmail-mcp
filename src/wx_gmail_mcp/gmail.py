@@ -234,9 +234,13 @@ def batch_delete(svc: GmailService, message_ids: list[str]) -> int:
     return len(message_ids)
 
 
-def send_raw(svc: GmailService, raw: str) -> dict[str, Any]:
-    """``messages.send`` of a base64url RFC 822 message."""
-    return svc.users().messages().send(userId="me", body={"raw": raw}).execute()
+def send_raw(svc: GmailService, raw: str, thread_id: str = "") -> dict[str, Any]:
+    """``messages.send`` of a base64url RFC 822 message; ``thread_id`` files
+    it in an existing conversation (the headers must reference it too)."""
+    body: dict[str, Any] = {"raw": raw}
+    if thread_id:
+        body["threadId"] = thread_id
+    return svc.users().messages().send(userId="me", body=body).execute()
 
 
 def _draft_body(raw: str, thread_id: str) -> dict[str, Any]:
