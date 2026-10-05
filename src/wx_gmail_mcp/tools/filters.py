@@ -16,7 +16,7 @@ from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.filters import FilterRequest, FilterSpec
 from wx_gmail_mcp.gmail import GmailService, Runtime
 from wx_gmail_mcp.labels import LabelMap
-from wx_gmail_mcp.safety import describe_error, register_tool
+from wx_gmail_mcp.safety import describe_error, register_tool, require_ids
 from wx_gmail_mcp.tools.organize import describe_changes
 
 # After a filter exists, a re-run of create_filter would make a second one,
@@ -32,6 +32,12 @@ FINISH_TRASH = (
     "tool, which needs WX_GMAIL_ALLOW_DELETE=true)",
     "Finish with a trash tool on the remaining matches",
 )
+# filters.delete has no batch form: one get and one delete per id.
+MAX_FILTER_IDS = 100
+
+
+def _plural(n: int) -> str:
+    return f"{n} filter" if n == 1 else f"{n} filters"
 
 
 def register(mcp: MCPServer, rt: Runtime) -> None:
@@ -93,9 +99,10 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         apply: bool,
         apply_limit: int,
         what: str,
+        head: list[str] | None = None,
     ) -> str:
         """The dry-run text: the filter, labels it would create, the matches."""
-        lines = [f"Dry run: {what}.", *filters.spec_text(spec, labels)]
+        lines = [f"Dry run: {what}.", *(head or []), *filters.spec_text(spec, labels)]
         if spec.missing:
             lines.append(f"Labels to create: {', '.join(spec.missing)}.")
         tail = f"Run again with dry_run=false to {what}"
@@ -115,16 +122,15 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         return "\n".join(lines)
 
     def create(
-        svc: GmailService,
-        labels: LabelMap,
-        spec: FilterSpec,
-        apply: bool,
-        apply_limit: int,
-    ) -> tuple[str, list[str]]:
-        """Create missing labels, then the filter, then apply it.
+        svc: GmailService, labels: LabelMap, spec: FilterSpec
+    ) -> tuple[str, FilterSpec, LabelMap, list[str]]:
+        """Create missing labels, then the filter.
 
-        Returns the new filter id and the report lines. The filter exists
-        before the apply starts, so mail arriving meanwhile is still caught.
+        Returns the new filter id, the spec with the created labels' ids,
+        a label map that knows them (the caller must apply and report with
+        these two, not the originals) and the lines describing the filter.
+        The caller applies afterwards, so the filter exists before the
+        apply starts and mail arriving meanwhile is still caught.
         """
         spec, note = filters.create_missing(svc, spec)
         if note:
@@ -139,12 +145,10 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
                 f"were made for it. {note} They remain; reuse or delete_label them."
             ) from e
         filter_id = str(created.get("id", ""))
-        lines = [f"Created filter {filter_id}.", *filters.spec_text(spec, labels)]
+        lines = filters.spec_text(spec, labels)
         if note:
             lines.append(note)
-        if apply:
-            lines.append(apply_text(svc, labels, spec, apply_limit))
-        return filter_id, lines
+        return filter_id, spec, labels, lines
 
     def apply_text(
         svc: GmailService, labels: LabelMap, spec: FilterSpec, apply_limit: int
@@ -230,9 +234,127 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         spec = filters.plan_filter(req, labels, create_missing_labels)
         if dry_run:
             return preview(svc, labels, spec, apply, apply_limit, "create the filter")
-        _, lines = create(svc, labels, spec, apply, apply_limit)
+        filter_id, spec, labels, lines = create(svc, labels, spec)
+        lines.insert(0, f"Created filter {filter_id}.")
+        if apply:
+            lines.append(apply_text(svc, labels, spec, apply_limit))
+        return "\n".join(lines)
+
+    def delete_filter(account: str, filter_ids: Sequence[str]) -> str:
+        """Delete filters by id (up to 100). Each is shown as it was before
+        deletion; the mail it labelled is untouched."""
+        ids = list(dict.fromkeys(require_ids(list(filter_ids), "filter_ids")))
+        if len(ids) > MAX_FILTER_IDS:
+            raise WxGmailError(
+                f"filter_ids holds {len(ids)} ids; the cap is {MAX_FILTER_IDS}."
+            )
+        svc = service(account)
+        labels = LabelMap.fetch(svc)
+        lines: list[str] = []
+        done = 0
+        try:
+            for filter_id in ids:
+                flt = gmail.get_filter(svc, filter_id)
+                gmail.delete_filter(svc, filter_id)
+                done += 1
+                lines.append(filters.filter_text(flt, labels))
+        except Exception as e:
+            head = (
+                f"Deleted {done} of {_plural(len(ids))} before an error on filter "
+                f"{ids[done]}: {describe_error(e)}"
+            )
+            return "\n".join([head, *lines])
+        return "\n".join([f"Deleted {_plural(done)}:", *lines])
+
+    def replace_filter(
+        account: str,
+        filter_id: str,
+        from_: str = "",
+        to: str = "",
+        subject: str = "",
+        query: str = "",
+        negated_query: str = "",
+        has_attachment: bool = False,
+        exclude_chats: bool = False,
+        size: int = 0,
+        size_comparison: str = "larger",
+        add_labels: Sequence[str] = (),
+        remove_labels: Sequence[str] = (),
+        create_missing_labels: bool = False,
+        skip_inbox: bool = False,
+        mark_read: bool = False,
+        star: bool = False,
+        always_important: bool = False,
+        never_important: bool = False,
+        never_spam: bool = False,
+        category: str = "",
+        delete: bool = False,
+        apply: bool = False,
+        apply_limit: int = bulk.DEFAULT_LIMIT,
+        dry_run: bool = True,
+    ) -> str:
+        """Replace filter `filter_id` with a new one described in full by the
+        same flags as create_filter (nothing is inherited from the old
+        filter). Gmail has no filter update, so the new filter is created,
+        then the old one deleted, then `apply` runs if asked. `dry_run=true`
+        (the default) shows both filters and changes nothing."""
+        req = FilterRequest(
+            from_=from_,
+            to=to,
+            subject=subject,
+            query=query,
+            negated_query=negated_query,
+            has_attachment=has_attachment,
+            exclude_chats=exclude_chats,
+            size=size,
+            size_comparison=size_comparison,
+            add_labels=add_labels,
+            remove_labels=remove_labels,
+            skip_inbox=skip_inbox,
+            mark_read=mark_read,
+            star=star,
+            always_important=always_important,
+            never_important=never_important,
+            never_spam=never_spam,
+            category=category,
+            delete=delete,
+        )
+        filter_id = filter_id.strip()
+        if not filter_id:
+            raise WxGmailError("filter_id is required.")
+        if apply:
+            bulk.check_limit(apply_limit, "apply_limit")
+        svc = service(account)
+        check_delete(account, req)
+        labels = LabelMap.fetch(svc)
+        spec = filters.plan_filter(req, labels, create_missing_labels)
+        old = gmail.get_filter(svc, filter_id)
+        current = [
+            "Current:",
+            *filters.filter_text(old, labels).split("\n")[1:],
+            "New:",
+        ]
+        if dry_run:
+            return preview(
+                svc, labels, spec, apply, apply_limit, "replace the filter", current
+            )
+        new_id, spec, labels, lines = create(svc, labels, spec)
+        try:
+            gmail.delete_filter(svc, filter_id)
+        except Exception as e:
+            lines.insert(
+                0,
+                f"Created filter {new_id}, but deleting filter {filter_id} failed: "
+                f"{describe_error(e)} Both exist; delete_filter the old one.",
+            )
+        else:
+            lines.insert(0, f"Replaced filter {filter_id} with {new_id}.")
+        if apply:
+            lines.append(apply_text(svc, labels, spec, apply_limit))
         return "\n".join(lines)
 
     register_tool(mcp, list_filters)
     register_tool(mcp, get_filter)
     register_tool(mcp, create_filter)
+    register_tool(mcp, delete_filter)
+    register_tool(mcp, replace_filter)

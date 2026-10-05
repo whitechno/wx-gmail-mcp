@@ -24,6 +24,11 @@ the project uses [Semantic Versioning](https://semver.org/).
   apply, so mail arriving in between is caught; `apply_limit` default
   5000). `dry_run` defaults to true and shows the filter, the labels it
   would create and the matching mail without changing anything.
+- `delete_filter` (an id list, each filter shown as it was) and
+  `replace_filter` (Gmail has no filter update: the new filter is
+  created from the same flags as `create_filter`, then the old one is
+  deleted, then `apply` runs if asked; `dry_run` default true shows
+  both). Same gate and scope.
 - `create_label` (nested `Parent/Child`, missing parents created,
   colors, visibility), `update_label` (rename or move, colors,
   visibility) and `delete_label` (the label only, never its messages).

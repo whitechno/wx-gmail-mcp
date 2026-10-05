@@ -39,7 +39,13 @@ ALWAYS_ON = {
     "create_draft",
 }
 SENDING: set[str] = {"send_message"}
-SETTINGS: set[str] = {"list_filters", "get_filter", "create_filter"}
+SETTINGS: set[str] = {
+    "list_filters",
+    "get_filter",
+    "create_filter",
+    "delete_filter",
+    "replace_filter",
+}
 DELETE: set[str] = set()
 
 TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,40}$")
