@@ -152,8 +152,8 @@ gemini mcp add -s user -e WX_GMAIL_ALLOW_SETTINGS=true \
 ```
 
 `gemini mcp list` shows connection status. Gemini CLI truncates tool
-names above 63 characters; the longest here, `wx-gmail-mcp__delete_permanently`,
-is 32. `includeTools` / `excludeTools` in the same block filter the
+names above 63 characters; the longest here, `wx-gmail-mcp__modify_thread_labels`,
+is 34. `includeTools` / `excludeTools` in the same block filter the
 list.
 
 Source: [MCP servers with the Gemini CLI](https://geminicli.com/docs/tools/mcp-server/).
