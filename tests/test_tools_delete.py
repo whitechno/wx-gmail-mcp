@@ -214,8 +214,9 @@ def test_batch_delete_failure_keeps_the_audit_trail(tmp_path: Path) -> None:
         dry_run=False,
     )
     assert text.splitlines() == [
-        "Nothing was deleted: the delete of 1 message failed with "
-        "HTTP 500: Backend Error. The items were:",
+        "The delete of 1 message failed with HTTP 500: Backend Error; they may "
+        "or may not have been deleted. A retry audits again and reports a 404 "
+        "for anything already gone. The items were:",
         LINE_M1,
     ]
 
@@ -257,7 +258,7 @@ def test_delete_threads_with_audit_trail(tmp_path: Path) -> None:
         " | Subj: Test subject",
     ]
     assert fake.calls_to("users.threads.get")[0] == {**HEADERS, "id": "t1"}
-    assert fake.calls_to("users.threads.delete") == []
+    assert fake.calls_to("users.messages.batchDelete") == []
     text = call(
         mcp,
         "delete_permanently",
@@ -271,11 +272,11 @@ def test_delete_threads_with_audit_trail(tmp_path: Path) -> None:
     assert lines[1] == "[thread t1] 2 messages"
     assert lines[4] == "[thread t2] 1 message"
     assert len(lines) == 6
-    assert fake.calls_to("users.threads.delete") == [
-        {"userId": "me", "id": "t1"},
-        {"userId": "me", "id": "t2"},
+    # Exactly the audited messages are deleted, not the thread as a whole.
+    assert fake.calls_to("users.messages.batchDelete") == [
+        {"userId": "me", "body": {"ids": ["t1m1", "t1m2", "t2m1"]}}
     ]
-    assert fake.calls_to("users.messages.batchDelete") == []
+    assert fake.calls_to("users.threads.delete") == []
 
 
 def test_partially_trashed_thread_is_refused(tmp_path: Path) -> None:
@@ -294,37 +295,16 @@ def test_partially_trashed_thread_is_refused(tmp_path: Path) -> None:
         "Error: 1 thread is not entirely in Trash: t1. Trash it first, or pass "
         "require_trashed=false to delete it anyway. Nothing was deleted."
     )
-    assert fake.calls_to("users.threads.delete") == []
-
-
-def test_thread_delete_failure_midway_reports_what_went(tmp_path: Path) -> None:
-    def delete(**kwargs: Any) -> dict[str, Any]:
-        if kwargs["id"] == "t2":
-            raise _http_error(500, "Backend Error")
-        return {}
-
-    fake = _threads(
-        t1=_thread("t1", ("TRASH",)),
-        t2=_thread("t2", ("TRASH",)),
-        t3=_thread("t3", ("TRASH",)),
-    )
-    fake.responses["users.threads.delete"] = delete
+    assert fake.calls_to("users.messages.batchDelete") == []
+    # An empty thread is not "in Trash" either.
+    fake = _threads(t1={"id": "t1", "messages": []})
     text = call(
         _server(tmp_path, fake),
         "delete_permanently",
         account="work",
-        ids=["t1", "t2", "t3"],
+        ids=["t1"],
         kind="thread",
         dry_run=False,
     )
-    lines = text.splitlines()
-    assert lines[0] == (
-        "Permanently deleted 1 of 3 threads before an error on thread t2: "
-        "HTTP 500: Backend Error"
-    )
-    assert lines[1:] == [
-        "[thread t1] 1 message",
-        "  [t1m1] Fri, 02 Oct 2026 10:00:00 +0000 | From: Sender <sender@example.com>"
-        " | Subj: Test subject",
-    ]
-    assert [kw["id"] for kw in fake.calls_to("users.threads.delete")] == ["t1", "t2"]
+    assert text.startswith("Error: 1 thread is not entirely in Trash: t1.")
+    assert fake.calls_to("users.messages.batchDelete") == []

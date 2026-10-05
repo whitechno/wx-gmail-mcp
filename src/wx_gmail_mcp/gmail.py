@@ -228,15 +228,10 @@ def untrash_thread(svc: GmailService, thread_id: str) -> dict[str, Any]:
 
 
 def batch_delete(svc: GmailService, message_ids: list[str]) -> int:
-    """``messages.batchDelete`` in chunks of 1000: permanent, skips Trash."""
+    """``messages.batchDelete`` in chunks of 1000: permanent, no Trash step."""
     for chunk in chunked(message_ids, BATCH_LIMIT):
         svc.users().messages().batchDelete(userId="me", body={"ids": chunk}).execute()
     return len(message_ids)
-
-
-def delete_thread(svc: GmailService, thread_id: str) -> None:
-    """``threads.delete``: permanent, every message in the thread."""
-    svc.users().threads().delete(userId="me", id=thread_id).execute()
 
 
 def send_raw(svc: GmailService, raw: str) -> dict[str, Any]:

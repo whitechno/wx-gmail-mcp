@@ -97,19 +97,23 @@ def audit_messages(svc: GmailService, ids: list[str]) -> tuple[list[str], list[s
 
 def audit_threads(
     svc: GmailService, ids: list[str]
-) -> tuple[list[list[str]], list[str]]:
-    """Audit lines per thread (header plus one line per message), and the
-    ids of threads with any message outside Trash."""
-    blocks: list[list[str]] = []
+) -> tuple[list[str], list[str], list[str]]:
+    """Audit lines (a header per thread, one line per message), the ids of
+    every audited message, and the ids of threads with any message outside
+    Trash. The delete then targets exactly the audited messages, so a reply
+    arriving after the audit is not swept away by ``threads.delete``."""
+    lines: list[str] = []
+    message_ids: list[str] = []
     not_trashed: list[str] = []
     for thread_id in ids:
         thread = gmail.get_thread(svc, thread_id, "metadata", AUDIT_HEADERS)
         messages = thread.get("messages", []) or []
-        head = f"[thread {thread_id}] {plural(len(messages), 'message')}"
-        blocks.append([head, *("  " + audit_line(m) for m in messages)])
-        if not all(is_trashed(m) for m in messages):
+        lines.append(f"[thread {thread_id}] {plural(len(messages), 'message')}")
+        lines.extend("  " + audit_line(m) for m in messages)
+        message_ids.extend(str(m.get("id", "")) for m in messages)
+        if not messages or not all(is_trashed(m) for m in messages):
             not_trashed.append(thread_id)
-    return blocks, not_trashed
+    return lines, message_ids, not_trashed
 
 
 def refuse_untrashed(not_trashed: list[str], kind: str) -> None:
@@ -142,8 +146,9 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
 
     def untrash(account: str, ids: Sequence[str], kind: str = "message") -> str:
         """Move messages (default) or whole threads (`kind='thread'`) out of
-        Trash, back to their other labels. Up to 100 ids per call, one API
-        call each."""
+        Trash, back to their other labels but not to Inbox (add INBOX with
+        modify_labels if wanted). Up to 100 ids per call, one API call
+        each."""
         items, k = prepare(ids, kind)
         return for_each(service(account), items, k, "untrash")
 
@@ -160,16 +165,14 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         `require_trashed=false`. Each item's date, sender and subject are
         fetched first and returned as the audit trail. `dry_run=true` (the
         default) shows that trail and deletes nothing; run again with
-        `dry_run=false` to delete. A thread is deleted whole, including a
-        reply that arrives after the audit fetch."""
+        `dry_run=false` to delete."""
         items, k = prepare(ids, kind)
         svc = service(account)
-        blocks: list[list[str]] = []
         if k == "message":
             lines, not_trashed = audit_messages(svc, items)
+            message_ids = items
         else:
-            blocks, not_trashed = audit_threads(svc, items)
-            lines = [line for block in blocks for line in block]
+            lines, message_ids, not_trashed = audit_threads(svc, items)
         if require_trashed:
             refuse_untrashed(not_trashed, k)
         what = plural(len(items), k)
@@ -181,28 +184,15 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
                     *lines,
                 ]
             )
-        if k == "message":
-            try:
-                gmail.batch_delete(svc, items)
-            except Exception as e:
-                head = (
-                    f"Nothing was deleted: the delete of {what} failed with "
-                    f"{describe_error(e)}. The items were:"
-                )
-                return "\n".join([head, *lines])
-            return "\n".join([f"Permanently deleted {what}:", *lines])
-        done = 0
         try:
-            for thread_id in items:
-                gmail.delete_thread(svc, thread_id)
-                done += 1
+            gmail.batch_delete(svc, message_ids)
         except Exception as e:
             head = (
-                f"Permanently deleted {done} of {what} before an error on "
-                f"thread {items[done]}: {describe_error(e)}"
+                f"The delete of {what} failed with {describe_error(e)}; they "
+                "may or may not have been deleted. A retry audits again and "
+                "reports a 404 for anything already gone. The items were:"
             )
-            deleted = [line for block in blocks[:done] for line in block]
-            return "\n".join([head, *deleted])
+            return "\n".join([head, *lines])
         return "\n".join([f"Permanently deleted {what}:", *lines])
 
     register_tool(mcp, trash)

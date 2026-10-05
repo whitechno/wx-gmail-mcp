@@ -17,8 +17,9 @@ the project uses [Semantic Versioning](https://semver.org/).
   by explicit id only, at most 100 per call, no query form and no
   empty-trash tool. By default only mail already in Trash is accepted
   (`require_trashed`); every item's date, sender and subject are fetched
-  before deleting and returned as the audit trail. `dry_run` defaults to
-  true and shows that trail without deleting anything.
+  before deleting and returned as the audit trail; exactly those messages
+  are then deleted in one `batchDelete`, for threads too. `dry_run`
+  defaults to true and shows that trail without deleting anything.
 - `list_filters` and `get_filter`, registered only with
   `WX_GMAIL_ALLOW_SETTINGS=true` and only usable by accounts that granted
   the `gmail.settings.basic` scope. Each filter is shown with its
