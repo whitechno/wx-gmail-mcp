@@ -273,6 +273,9 @@ def _attach_blob(msg: EmailMessage, blob: Blob) -> None:
     if (blob.maintype, blob.subtype) == ("message", "rfc822"):
         # A message part is nested, not base64-encoded (RFC 2046 §5.2.1).
         inner = message_from_bytes(blob.data, policy=policy.default)
+        # Gmail keeps Bcc on the stored copy of sent mail; the new
+        # recipients must not see it.
+        del inner["Bcc"]
         msg.add_attachment(inner, filename=blob.filename)
         return
     msg.add_attachment(

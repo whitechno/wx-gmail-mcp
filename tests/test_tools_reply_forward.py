@@ -120,7 +120,7 @@ def test_reply_all_without_quote_with_extras(tmp_path: Path) -> None:
         body="All\n",
         reply_all=True,
         quote=False,
-        cc="dave@example.com",
+        cc="dave@example.com, bob@example.com",
         bcc="eve@example.com",
         attachments=["a.txt"],
     )

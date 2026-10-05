@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from wx_gmail_mcp import compose
+from wx_gmail_mcp import compose, mime
 from wx_gmail_mcp.compose import Original
 
 from .conftest import b64, message
@@ -167,6 +167,65 @@ def test_blob_type() -> None:
     )
     assert compose._blob_type("multipart/mixed") == ("application", "octet-stream")
     assert compose._blob_type("nonsense") == ("application", "octet-stream")
+
+
+def test_original_attachments_refuses_oversize_before_fetching(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from wx_gmail_mcp.errors import WxGmailError
+
+    from .fake_gmail import FakeGmail
+
+    monkeypatch.setattr(mime, "MAX_ATTACHMENT_BYTES", 5)
+    parts: list[dict[str, Any]] = [
+        {
+            "partId": "1",
+            "mimeType": "application/pdf",
+            "filename": "a.pdf",
+            "body": {"attachmentId": "att1", "size": 6},
+        }
+    ]
+    fake = FakeGmail()
+    o = Original.from_message(message("m1", "t1", parts=parts))
+    with pytest.raises(WxGmailError, match=r"total 0\.0 MB; Gmail accepts up to 0 MB"):
+        compose.original_attachments(fake, o)
+    assert fake.calls == []
+
+
+def test_original_attachments_skips_out_of_line_bodies() -> None:
+    from .fake_gmail import FakeGmail
+
+    parts: list[dict[str, Any]] = [
+        {
+            "partId": "0",
+            "mimeType": "text/html",
+            "body": {"attachmentId": "body1", "size": 90000},
+        },
+        {
+            "partId": "1",
+            "mimeType": "text/plain",
+            "filename": "notes.txt",
+            "body": {"attachmentId": "att1", "size": 2},
+        },
+    ]
+    fake = FakeGmail({"users.messages.attachments.get": {"data": b64("ok")}})
+    o = Original.from_message(message("m1", "t1", parts=parts))
+    blobs = compose.original_attachments(fake, o)
+    assert [b.filename for b in blobs] == ["notes.txt"]
+    assert [c["id"] for c in fake.calls_to("users.messages.attachments.get")] == [
+        "att1"
+    ]
+
+
+def test_join_recipients_dedupes() -> None:
+    assert (
+        compose.join_recipients(
+            "Bob <bob@example.com>, carol@example.com",
+            " BOB@example.com, dave@example.com",
+        )
+        == "Bob <bob@example.com>, carol@example.com, dave@example.com"
+    )
+    assert compose.join_recipients("", " ") == ""
 
 
 def test_original_attachments_fetches_each_part() -> None:

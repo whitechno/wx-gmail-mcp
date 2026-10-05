@@ -15,6 +15,7 @@ from typing import Any
 
 from wx_gmail_mcp import gmail, mime, safety
 from wx_gmail_mcp.config import Settings
+from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.gmail import GmailService, header
 
 RE_PREFIX = re.compile(r"^re\s*:", re.IGNORECASE)
@@ -152,7 +153,15 @@ def reply_recipients(
 
 
 def join_recipients(*fields: str) -> str:
-    return ", ".join(f.strip() for f in fields if f.strip())
+    """One header value from several, each address kept once."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for name, addr in getaddresses([f for f in fields if f.strip()]):
+        if not addr or addr.lower() in seen:
+            continue
+        seen.add(addr.lower())
+        out.append(formataddr((name, addr)))
+    return ", ".join(out)
 
 
 def original_text(orig: Original) -> tuple[str, bool]:
@@ -219,9 +228,24 @@ def _blob_type(mime_type: str) -> tuple[str, str]:
 
 
 def original_attachments(svc: GmailService, orig: Original) -> list[mime.Blob]:
-    """The original's attachments, fetched for re-attaching to a forward."""
+    """The original's attachments, fetched for re-attaching to a forward.
+    Their declared sizes are checked against the limit before any fetch."""
+    # A large text body is stored out of line too (attachmentId, no name);
+    # that is the body, not a file to re-attach.
+    atts = [
+        a
+        for a in mime.attachments(orig.payload)
+        if a.filename or not a.mime_type.lower().startswith("text/")
+    ]
+    declared = sum(a.size for a in atts)
+    if declared > mime.MAX_ATTACHMENT_BYTES:
+        raise WxGmailError(
+            f"The original's attachments total {declared / 1_000_000:.1f} MB; "
+            f"Gmail accepts up to {mime.MAX_ATTACHMENT_BYTES // 1_000_000} MB per "
+            "message. Forward with include_attachments=false or as_attachment=true."
+        )
     blobs: list[mime.Blob] = []
-    for a in mime.attachments(orig.payload):
+    for a in atts:
         payload = gmail.get_attachment(svc, orig.id, a.attachment_id)
         data = mime.decode_attachment(str(payload.get("data", "") or ""))
         maintype, subtype = _blob_type(a.mime_type)

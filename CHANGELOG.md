@@ -117,7 +117,11 @@ the project uses [Semantic Versioning](https://semver.org/).
   attachments of one message may now total up to Gmail's 25 MB, checked
   before anything is read or sent. A message with `html` and no plain
   `body` is sent as a single `text/html` part instead of carrying an
-  empty `text/plain` alternative.
+  empty `text/plain` alternative. `forward` checks the original's
+  declared attachment sizes before fetching any, does not re-attach a
+  body part Gmail stored out of line, and strips `Bcc` from the original
+  when forwarding it as an attachment; `reply` lists each Cc address
+  once.
 - `search` unescapes HTML entities in snippets (`&#39;` -> `'`).
 - Gmail API errors read `HTTP <status>: <message>` instead of the full
   `HttpError` text with the request URL.

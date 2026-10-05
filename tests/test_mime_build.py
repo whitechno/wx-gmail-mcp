@@ -108,7 +108,12 @@ def test_attachments_are_added_with_guessed_type(tmp_path: Path) -> None:
 def test_blobs_are_attached_after_files(tmp_path: Path) -> None:
     note = tmp_path / "note.txt"
     note.write_text("n")
-    inner = mime.build_message(to="a@example.com", subject="inner", body="hello \u00e9")
+    inner = mime.build_message(
+        to="a@example.com",
+        subject="inner",
+        body="hello \u00e9",
+        bcc="hidden@example.com",
+    )
     msg = _parse(
         mime.build_message(
             to="a@example.com",
@@ -129,6 +134,7 @@ def test_blobs_are_attached_after_files(tmp_path: Path) -> None:
     assert atts[2]["Content-Transfer-Encoding"] != "base64"
     nested = cast(EmailMessage, cast(list[EmailMessage], atts[2].get_payload())[0])
     assert nested["Subject"] == "inner"
+    assert nested["Bcc"] is None  # never shown to the new recipients
     assert nested.get_content() == "hello \u00e9\n"
 
 
