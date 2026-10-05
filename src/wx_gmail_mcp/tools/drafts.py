@@ -12,8 +12,7 @@ from typing import Any
 from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import MCPServer
 
-from wx_gmail_mcp import gmail, mime
-from wx_gmail_mcp.compose import build_raw
+from wx_gmail_mcp import compose, gmail, mime
 from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.gmail import GmailService, Runtime, header
 from wx_gmail_mcp.safety import describe_error, register_tool, require_ids
@@ -102,9 +101,10 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         reply_to: str = "",
     ) -> str:
         """Create a draft (nothing is sent). `html` adds an HTML alternative
-        to the plain `body`; `attachments` are file names inside the server's
-        outbox directory. Returns the draft id and message id."""
-        raw = build_raw(
+        to the plain `body` (or is the whole body when `body` is empty);
+        `attachments` are file names inside the server's outbox directory.
+        Returns the draft id and message id."""
+        data = compose.build(
             rt.settings,
             to=to,
             subject=subject,
@@ -115,7 +115,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             attachments=attachments,
             reply_to=reply_to,
         )
-        draft = gmail.create_draft(rt.service(account), raw)
+        draft = gmail.create_draft(rt.service(account), data)
         message = draft.get("message", {}) or {}
         return (
             f"Draft created. draft id={draft.get('id', '')} "
@@ -179,7 +179,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         draft_id = draft_id.strip()
         existing = gmail.get_draft(svc, draft_id, "metadata")
         thread_id, in_reply_to, references = thread_context(existing)
-        raw = build_raw(
+        data = compose.build(
             rt.settings,
             to=to,
             subject=subject,
@@ -192,7 +192,7 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
             in_reply_to=in_reply_to,
             references=references,
         )
-        draft = gmail.update_draft(svc, draft_id, raw, thread_id)
+        draft = gmail.update_draft(svc, draft_id, data, thread_id)
         message = draft.get("message", {}) or {}
         return (
             f"Draft updated. draft id={draft.get('id', '')} "

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 from email import message_from_bytes, policy
 from email.message import EmailMessage
 from pathlib import Path
@@ -12,8 +11,8 @@ from wx_gmail_mcp import mime
 from wx_gmail_mcp.errors import WxGmailError
 
 
-def _parse(raw: str) -> EmailMessage:
-    parsed = message_from_bytes(base64.urlsafe_b64decode(raw), policy=policy.default)
+def _parse(raw: bytes) -> EmailMessage:
+    parsed = message_from_bytes(raw, policy=policy.default)
     return cast(EmailMessage, parsed)
 
 
@@ -59,6 +58,32 @@ def test_html_adds_alternative() -> None:
     assert parts[1].get_payload(decode=True) == b"<b>x</b>\n"
 
 
+def test_html_only_is_a_single_html_part() -> None:
+    msg = _parse(
+        mime.build_message(to="a@example.com", subject="s", body="", html="<b>x</b>")
+    )
+    assert msg.get_content_type() == "text/html"
+    assert msg.get_payload(decode=True) == b"<b>x</b>\n"
+
+
+def test_attachment_total_above_limit_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(mime, "MAX_ATTACHMENT_BYTES", 10)
+    big = tmp_path / "big.bin"
+    big.write_bytes(b"x" * 8)
+    blob = mime.Blob("b.bin", "application", "octet-stream", b"y" * 3)
+    with pytest.raises(WxGmailError, match=r"Attachments total 0\.0 MB; Gmail accepts"):
+        mime.build_message(
+            to="a@example.com", subject="s", body="b", attachments=[big], blobs=[blob]
+        )
+    # At the limit is fine.
+    big.write_bytes(b"x" * 7)
+    assert mime.build_message(
+        to="a@example.com", subject="s", body="b", attachments=[big], blobs=[blob]
+    )
+
+
 def test_attachments_are_added_with_guessed_type(tmp_path: Path) -> None:
     pdf = tmp_path / "report.pdf"
     pdf.write_bytes(b"%PDF-1.4 fake")
@@ -83,8 +108,11 @@ def test_attachments_are_added_with_guessed_type(tmp_path: Path) -> None:
 def test_blobs_are_attached_after_files(tmp_path: Path) -> None:
     note = tmp_path / "note.txt"
     note.write_text("n")
-    inner = base64.urlsafe_b64decode(
-        mime.build_message(to="a@example.com", subject="inner", body="hello \u00e9")
+    inner = mime.build_message(
+        to="a@example.com",
+        subject="inner",
+        body="hello \u00e9",
+        bcc="hidden@example.com",
     )
     msg = _parse(
         mime.build_message(
@@ -106,6 +134,7 @@ def test_blobs_are_attached_after_files(tmp_path: Path) -> None:
     assert atts[2]["Content-Transfer-Encoding"] != "base64"
     nested = cast(EmailMessage, cast(list[EmailMessage], atts[2].get_payload())[0])
     assert nested["Subject"] == "inner"
+    assert nested["Bcc"] is None  # never shown to the new recipients
     assert nested.get_content() == "hello \u00e9\n"
 
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 from email import message_from_bytes, policy
 from email.message import EmailMessage
 from pathlib import Path
@@ -9,7 +8,14 @@ from typing import Any, cast
 from wx_gmail_mcp.config import BASE_SCOPES, SCOPE_FULL, SCOPE_SEND, Settings
 from wx_gmail_mcp.server import build_server
 
-from .conftest import FakeRuntime, call, make_settings, tool_names, tool_server
+from .conftest import (
+    FakeRuntime,
+    call,
+    make_settings,
+    tool_names,
+    tool_server,
+    uploaded,
+)
 from .fake_gmail import FakeGmail
 
 ARGS: dict[str, Any] = {
@@ -21,9 +27,7 @@ ARGS: dict[str, Any] = {
 
 
 def _raw(call_kwargs: dict[str, Any]) -> EmailMessage:
-    body = call_kwargs["body"]
-    raw = body["raw"] if "raw" in body else body["message"]["raw"]
-    parsed = message_from_bytes(base64.urlsafe_b64decode(raw), policy=policy.default)
+    parsed = message_from_bytes(uploaded(call_kwargs), policy=policy.default)
     return cast(EmailMessage, parsed)
 
 

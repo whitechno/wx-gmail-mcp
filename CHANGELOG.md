@@ -111,6 +111,18 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- `send_message`, `create_draft`, `update_draft`, `reply` and `forward`
+  upload the message as `message/rfc822` media (resumable) instead of a
+  base64 `raw` field in the JSON body, which Gmail caps at 5 MB; the
+  attachments of one message may now total up to Gmail's 25 MB, checked
+  before the message is built, and nothing is sent above it. A message
+  with `html` and no plain `body` is sent as a single `text/html` part
+  instead of carrying an empty `text/plain` alternative. `forward`
+  checks the original's declared sizes before fetching anything, quotes
+  a body Gmail stored out of line instead of re-attaching it, and strips
+  `Bcc` from the original when forwarding it as an attachment. `reply`
+  lists each Cc address once and refuses a `cc` that does not parse
+  instead of dropping it.
 - `search` unescapes HTML entities in snippets (`&#39;` -> `'`).
 - Gmail API errors read `HTTP <status>: <message>` instead of the full
   `HttpError` text with the request URL.

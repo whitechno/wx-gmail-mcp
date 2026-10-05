@@ -15,6 +15,7 @@ from typing import Any
 
 from wx_gmail_mcp import gmail, mime, safety
 from wx_gmail_mcp.config import Settings
+from wx_gmail_mcp.errors import WxGmailError
 from wx_gmail_mcp.gmail import GmailService, header
 
 RE_PREFIX = re.compile(r"^re\s*:", re.IGNORECASE)
@@ -26,7 +27,7 @@ QUOTE_LIMIT = 200_000
 TRUNCATED_NOTE = "[original text cut here]"
 
 
-def build_raw(
+def build(
     settings: Settings,
     *,
     to: str,
@@ -40,8 +41,8 @@ def build_raw(
     in_reply_to: str = "",
     references: str = "",
     blobs: Sequence[mime.Blob] = (),
-) -> str:
-    """Resolve outbox attachments, then build the raw message."""
+) -> bytes:
+    """Resolve outbox attachments, then build the RFC 822 message."""
     paths = [safety.outbox_path(settings, name) for name in attachments if name]
     return mime.build_message(
         to=to,
@@ -61,12 +62,36 @@ def build_raw(
 # --- reply and forward ------------------------------------------------------
 
 
+BODY_TYPES = ("text/plain", "text/html")
+
+
+def parse_addresses(field: str, what: str = "") -> list[tuple[str, str]]:
+    """(name, address) pairs in one header field.
+
+    Python's strict parser returns nothing usable for a trailing comma or
+    an unbalanced quote; the lenient parser is tried then. With ``what``
+    set (user input), a field that still yields an empty entry is an
+    error rather than a recipient silently dropped from a send.
+    """
+    if not field.strip():
+        return []
+    pairs = getaddresses([field])
+    if not any(addr for _, addr in pairs):
+        pairs = getaddresses([field], strict=False)
+    if what and (not pairs or any(not addr for _, addr in pairs)):
+        raise WxGmailError(
+            f"{what} could not be parsed as addresses: {field.strip()!r}."
+        )
+    return [(name, addr) for name, addr in pairs if addr]
+
+
 @dataclass(frozen=True)
 class Original:
     """What a reply or forward needs from the message it acts on."""
 
     id: str
     thread_id: str
+    size_estimate: int
     message_id_header: str
     references: str
     sender: str
@@ -83,6 +108,7 @@ class Original:
         return cls(
             id=str(msg.get("id", "") or ""),
             thread_id=str(msg.get("threadId", "") or ""),
+            size_estimate=int(msg.get("sizeEstimate", 0) or 0),
             message_id_header=header(p, "Message-ID").strip(),
             references=header(p, "References").strip(),
             sender=header(p, "From").strip(),
@@ -95,8 +121,30 @@ class Original:
         )
 
 
+def _is_body_part(part: dict[str, Any]) -> bool:
+    return not part.get("filename") and (
+        str(part.get("mimeType", "")).lower() in BODY_TYPES
+    )
+
+
+def inline_bodies(svc: GmailService, msg: dict[str, Any]) -> None:
+    """Fetch text bodies Gmail stored out of line (``attachmentId``, no
+    ``data``) into the payload, so quoting and forwarding see them."""
+    for part in mime.walk(msg.get("payload", {}) or {}):
+        body = part.get("body") or {}
+        if not _is_body_part(part) or body.get("data") or not body.get("attachmentId"):
+            continue
+        fetched = gmail.get_attachment(
+            svc, str(msg.get("id", "")), body["attachmentId"]
+        )
+        body["data"] = fetched.get("data", "")
+        part["body"] = body
+
+
 def load_original(svc: GmailService, message_id: str) -> Original:
-    return Original.from_message(gmail.get_message(svc, message_id.strip(), "full"))
+    msg = gmail.get_message(svc, message_id.strip(), "full")
+    inline_bodies(svc, msg)
+    return Original.from_message(msg)
 
 
 def threading_headers(orig: Original) -> tuple[str, str]:
@@ -119,7 +167,7 @@ def forward_subject(subject: str) -> str:
 
 
 def _addresses(*fields: str) -> list[str]:
-    return [addr for _, addr in getaddresses(list(fields)) if addr]
+    return [addr for f in fields for _, addr in parse_addresses(f)]
 
 
 def reply_recipients(
@@ -142,17 +190,28 @@ def reply_recipients(
         return to, ""
     covered = {a.lower() for a in _addresses(to)} | {me}
     cc: list[str] = []
-    for name, addr in getaddresses([orig.to, orig.cc]):
+    for name, addr in [*parse_addresses(orig.to), *parse_addresses(orig.cc)]:
         key = addr.lower()
-        if not addr or key in covered:
+        if key in covered:
             continue
         covered.add(key)
         cc.append(formataddr((name, addr)))
     return to, ", ".join(cc)
 
 
-def join_recipients(*fields: str) -> str:
-    return ", ".join(f.strip() for f in fields if f.strip())
+def join_recipients(*fields: str, exclude: str = "", what: str = "cc") -> str:
+    """One header value from several fields, each address once and none
+    that ``exclude`` already names; a field that does not parse is an
+    error (see ``parse_addresses``)."""
+    out: list[str] = []
+    seen = {a.lower() for a in _addresses(exclude)}
+    for field in fields:
+        for name, addr in parse_addresses(field, what):
+            if addr.lower() in seen:
+                continue
+            seen.add(addr.lower())
+            out.append(formataddr((name, addr)))
+    return ", ".join(out)
 
 
 def original_text(orig: Original) -> tuple[str, bool]:
@@ -219,9 +278,24 @@ def _blob_type(mime_type: str) -> tuple[str, str]:
 
 
 def original_attachments(svc: GmailService, orig: Original) -> list[mime.Blob]:
-    """The original's attachments, fetched for re-attaching to a forward."""
+    """The original's attachments, fetched for re-attaching to a forward.
+    Their declared sizes are checked against the limit before any fetch."""
+    # A large text body is stored out of line too (attachmentId, no name);
+    # that is the body (inlined by load_original), not a file to re-attach.
+    atts = [
+        a
+        for a in mime.attachments(orig.payload)
+        if a.filename or a.mime_type.lower() not in BODY_TYPES
+    ]
+    declared = sum(a.size for a in atts)
+    if declared > mime.MAX_ATTACHMENT_BYTES:
+        raise WxGmailError(
+            f"The original's attachments total {declared / 1_000_000:.1f} MB; "
+            f"Gmail accepts up to {mime.MAX_ATTACHMENT_BYTES // 1_000_000} MB per "
+            "message. Forward with include_attachments=false."
+        )
     blobs: list[mime.Blob] = []
-    for a in mime.attachments(orig.payload):
+    for a in atts:
         payload = gmail.get_attachment(svc, orig.id, a.attachment_id)
         data = mime.decode_attachment(str(payload.get("data", "") or ""))
         maintype, subtype = _blob_type(a.mime_type)
@@ -233,6 +307,13 @@ def original_attachments(svc: GmailService, orig: Original) -> list[mime.Blob]:
 def original_as_attachment(svc: GmailService, orig: Original) -> mime.Blob:
     """The complete original (``format=raw``) as a ``message/rfc822`` part,
     named after its subject like the web UI does."""
+    if orig.size_estimate > mime.MAX_ATTACHMENT_BYTES:
+        raise WxGmailError(
+            f"The original is about {orig.size_estimate / 1_000_000:.1f} MB; "
+            f"Gmail accepts up to {mime.MAX_ATTACHMENT_BYTES // 1_000_000} MB "
+            "per message, so it cannot be forwarded as an attachment. Forward "
+            "it quoted with include_attachments=false."
+        )
     msg = gmail.get_message(svc, orig.id, "raw")
     data = mime.decode_attachment(str(msg.get("raw", "") or ""))
     name = mime.safe_filename(orig.subject, "message") + ".eml"

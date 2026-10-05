@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 from email import message_from_bytes, policy
 from email.message import EmailMessage
 from pathlib import Path
@@ -20,6 +19,7 @@ from .conftest import (
     message,
     tool_names,
     tool_server,
+    uploaded,
 )
 from .fake_gmail import FakeGmail
 
@@ -42,7 +42,7 @@ def _server(tmp_path: Path, fake: FakeGmail, scopes: tuple[str, ...] = SEND):
 
 def _sent(fake: FakeGmail) -> tuple[dict[str, Any], EmailMessage]:
     (send,) = fake.calls_to("users.messages.send")
-    raw = base64.urlsafe_b64decode(send["body"]["raw"])
+    raw = uploaded(send)
     return send, cast(EmailMessage, message_from_bytes(raw, policy=policy.default))
 
 
@@ -120,7 +120,7 @@ def test_reply_all_without_quote_with_extras(tmp_path: Path) -> None:
         body="All\n",
         reply_all=True,
         quote=False,
-        cc="dave@example.com",
+        cc="dave@example.com, bob@example.com",
         bcc="eve@example.com",
         attachments=["a.txt"],
     )
@@ -167,6 +167,64 @@ def test_reply_reports_a_cut_original(
     )
     _, msg = _sent(fake)
     assert msg.get_content().endswith("> lon\n> [original text cut here]\n")
+
+
+def test_reply_cc_trailing_comma_kept_and_junk_refused(tmp_path: Path) -> None:
+    fake = _fake(message("m1", "t1", headers=HEADERS))
+    mcp = _server(tmp_path, fake)
+    call(
+        mcp, "reply", account="work", message_id="m1", body="x", cc="dave@example.com,"
+    )
+    _, msg = _sent(fake)
+    assert msg["Cc"] == "dave@example.com"
+    text = call(
+        mcp, "reply", account="work", message_id="m1", body="x", cc="a@example.com, <<<"
+    )
+    assert text == "Error: cc could not be parsed as addresses: 'a@example.com, <<<'."
+    assert len(fake.calls_to("users.messages.send")) == 1
+
+
+def test_reply_all_cc_never_repeats_to(tmp_path: Path) -> None:
+    fake = _fake(message("m1", "t1", headers=HEADERS))
+    call(
+        _server(tmp_path, fake),
+        "reply",
+        account="work",
+        message_id="m1",
+        body="x",
+        reply_all=True,
+        cc="alice@example.com",
+    )
+    _, msg = _sent(fake)
+    assert msg["To"] == "Alice <alice@example.com>"
+    assert msg["Cc"] == "Bob <bob@example.com>, carol@example.com"
+
+
+def test_forward_quotes_an_out_of_line_body(tmp_path: Path) -> None:
+    parts: list[dict[str, Any]] = [
+        {
+            "partId": "0",
+            "mimeType": "text/plain",
+            "body": {"attachmentId": "body1", "size": 50000},
+        }
+    ]
+    fake = _fake(
+        message("m1", "t1", headers=HEADERS, parts=parts),
+        **{"users.messages.attachments.get": {"data": b64("the stored body")}},
+    )
+    call(
+        _server(tmp_path, fake),
+        "forward",
+        account="work",
+        message_id="m1",
+        to="d@example.com",
+    )
+    assert [c["id"] for c in fake.calls_to("users.messages.attachments.get")] == [
+        "body1"
+    ]
+    _, msg = _sent(fake)
+    assert msg.get_content_type() == "text/plain"
+    assert msg.get_content().endswith("\n\nthe stored body\n")
 
 
 def test_reply_to_own_sent_message_goes_to_its_recipients(tmp_path: Path) -> None:
@@ -283,10 +341,8 @@ def test_forward_without_original_attachments(tmp_path: Path) -> None:
 
 
 def test_forward_as_attachment(tmp_path: Path) -> None:
-    original_raw = base64.urlsafe_b64decode(
-        mime.build_message(
-            to="you@example.com", subject="Plans: Q4/2026?", body="inner"
-        )
+    original_raw = mime.build_message(
+        to="you@example.com", subject="Plans: Q4/2026?", body="inner"
     )
 
     def get(**kw: Any) -> dict[str, Any]:
@@ -321,6 +377,26 @@ def test_forward_as_attachment(tmp_path: Path) -> None:
     inner = cast(EmailMessage, cast(list[EmailMessage], att.get_payload())[0])
     assert inner["Subject"] == "Plans: Q4/2026?"
     assert inner.get_content() == "inner\n"
+
+
+def test_forward_cc_is_validated_like_reply(tmp_path: Path) -> None:
+    fake = _fake(message("m1", "t1", headers=HEADERS))
+    mcp = _server(tmp_path, fake)
+    text = call(
+        mcp, "forward", account="work", message_id="m1", to="d@example.com", cc="<<<"
+    )
+    assert text == "Error: cc could not be parsed as addresses: '<<<'."
+    assert fake.calls_to("users.messages.send") == []
+    call(
+        mcp,
+        "forward",
+        account="work",
+        message_id="m1",
+        to="d@example.com",
+        cc="e@example.com, d@example.com,",
+    )
+    _, msg = _sent(fake)
+    assert msg["Cc"] == "e@example.com"
 
 
 def test_forward_requires_to(tmp_path: Path) -> None:
