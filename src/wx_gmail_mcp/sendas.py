@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from wx_gmail_mcp.errors import WxGmailError
+from wx_gmail_mcp.render import block
 
 SendAs = dict[str, Any]
 
@@ -52,13 +53,6 @@ def _flags(identity: SendAs) -> str:
     return f" ({', '.join(flags)})" if flags else ""
 
 
-def _block(name: str, value: str) -> str:
-    """``  name: first line`` with continuation lines aligned under it."""
-    first, *rest = value.splitlines() or [""]
-    pad = " " * (len(name) + 4)
-    return "\n".join([f"  {name}: {first}", *(pad + line for line in rest)])
-
-
 def text(identity: SendAs) -> str:
     """One identity: address and flags, then name, reply-to, verification
     (aliases only) and the signature as stored, HTML included."""
@@ -71,5 +65,5 @@ def text(identity: SendAs) -> str:
     if status and status != "verificationStatusUnspecified":
         lines.append(f"  verification: {status}")
     signature = str(identity.get("signature", "") or "")
-    lines.append(_block("signature", signature) if signature else "  signature: (none)")
+    lines.append(block("signature", signature) if signature else "  signature: (none)")
     return "\n".join(lines)

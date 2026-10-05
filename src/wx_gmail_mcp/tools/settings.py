@@ -1,9 +1,10 @@
 """Mailbox settings tools, registered only with WX_GMAIL_ALLOW_SETTINGS=true.
 
-Every tool checks that the account granted ``gmail.settings.basic``: the
-settings endpoints accept no other scope, the full mail scope included.
-Filters have their own module; nothing here touches forwarding, which
-would need the sharing scope.
+Every tool checks that the account granted ``gmail.settings.basic``. The
+write endpoints accept no other scope, the full mail scope included;
+``sendAs.list`` would also take the base scopes, but one check for the
+whole gate is deliberate. Filters have their own module; nothing here
+touches forwarding, which would need the sharing scope.
 """
 
 from __future__ import annotations
@@ -86,8 +87,10 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         svc = service(account)
         identity = sendas.find(gmail.list_send_as(svc), send_as_email)
         target = sendas.address(identity)
+        # Whitespace alone clears the signature rather than storing blanks.
+        signature = signature if signature.strip() else ""
         updated = gmail.patch_send_as(svc, target, {"signature": signature})
-        verb = "Set" if signature.strip() else "Cleared"
+        verb = "Set" if signature else "Cleared"
         return f"{verb} the signature of {target}.\n" + sendas.text(updated)
 
     register_tool(mcp, get_vacation)

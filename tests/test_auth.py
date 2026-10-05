@@ -10,7 +10,7 @@ import pytest
 from google.auth.exceptions import RefreshError
 from google.oauth2.credentials import Credentials
 
-from wx_gmail_mcp import auth
+from wx_gmail_mcp import accounts, auth
 from wx_gmail_mcp.config import (
     BASE_SCOPES,
     GATE_SETTINGS,
@@ -279,3 +279,55 @@ def test_run_oauth_keeps_token_when_profile_lookup_fails(tmp_path: Path) -> None
     assert "Note: could not confirm the address with Gmail (network down)." in (
         result.text()
     )
+
+
+def test_account_status_lines_condense_gate_warnings(tmp_path: Path) -> None:
+    s = make_settings(tmp_path, sending=True, settings=True, delete=True)
+    write_token(s, "base")
+    write_token(s, "half", (*BASE_SCOPES, SCOPE_FULL))
+    lines = auth.account_status_lines(s)
+    assert len(lines) == 4, lines
+    assert lines[1] == (
+        "    warning: WX_GMAIL_ALLOW_SENDING, WX_GMAIL_ALLOW_SETTINGS and "
+        "WX_GMAIL_ALLOW_DELETE are on but the send, settings.basic and full "
+        "scopes are not granted; re-run: WX_GMAIL_ALLOW_SENDING=true "
+        "WX_GMAIL_ALLOW_SETTINGS=true WX_GMAIL_ALLOW_DELETE=true wx-gmail-mcp "
+        "--auth base --email you@example.com"
+    )
+    # The full scope covers sending; only the settings gate is unmet.
+    assert lines[3].startswith(
+        "    warning: WX_GMAIL_ALLOW_SETTINGS is on but the settings.basic scope "
+        "is not granted; re-run: "
+    )
+
+
+def test_run_oauth_notes_a_replaced_alias(tmp_path: Path) -> None:
+    s = make_settings(tmp_path)
+    write_client(s)
+    write_token(s, "work", email="old@example.com")
+    result = auth.run_oauth(
+        s,
+        "work",
+        "you@example.com",
+        authorize=_fake_authorize({}, list(BASE_SCOPES)),
+        fetch_email=lambda creds: "you@example.com",
+    )
+    assert "Note: replaced the token 'work' held for old@example.com." in result.text()
+    assert accounts.load_accounts(s) == {"work": "you@example.com"}
+    second = auth.run_oauth(
+        s,
+        "other",
+        "you@example.com",
+        authorize=_fake_authorize({}, list(BASE_SCOPES)),
+        fetch_email=lambda creds: "you@example.com",
+    )
+    assert "replaced" not in second.text()
+    third = auth.run_oauth(
+        s,
+        "work",
+        "you@example.com",
+        authorize=_fake_authorize({}, list(BASE_SCOPES)),
+        fetch_email=lambda creds: "you@example.com",
+    )
+    assert "Note: refreshed the token 'work' for you@example.com." in third.text()
+    assert "replaced" not in third.text()

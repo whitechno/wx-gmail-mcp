@@ -97,23 +97,27 @@ def audit_messages(svc: GmailService, ids: list[str]) -> tuple[list[str], list[s
 
 def audit_threads(
     svc: GmailService, ids: list[str]
-) -> tuple[list[str], list[str], list[str]]:
+) -> tuple[list[str], list[str], list[str], int]:
     """Audit lines (a header per thread, one line per message), the ids of
-    every audited message, and the ids of threads with any message outside
-    Trash. The delete then targets exactly the audited messages, so a reply
-    arriving after the audit is not swept away by ``threads.delete``."""
+    every audited message, the ids of threads with any message outside
+    Trash, and the number of empty threads. The delete then targets exactly
+    the audited messages, so a reply arriving after the audit is not swept
+    away by ``threads.delete``."""
     lines: list[str] = []
     message_ids: list[str] = []
     not_trashed: list[str] = []
+    empty = 0
     for thread_id in ids:
         thread = gmail.get_thread(svc, thread_id, "metadata", AUDIT_HEADERS)
         messages = thread.get("messages", []) or []
         lines.append(f"[thread {thread_id}] {plural(len(messages), 'message')}")
         lines.extend("  " + audit_line(m) for m in messages)
         message_ids.extend(str(m.get("id", "")) for m in messages)
+        if not messages:
+            empty += 1
         if not messages or not all(is_trashed(m) for m in messages):
             not_trashed.append(thread_id)
-    return lines, message_ids, not_trashed
+    return lines, message_ids, not_trashed, empty
 
 
 def refuse_untrashed(not_trashed: list[str], kind: str) -> None:
@@ -165,16 +169,20 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         (default) shows the trail and deletes nothing."""
         items, k = prepare(ids, kind)
         svc = service(account)
+        empty = 0
         if k == "message":
             lines, not_trashed = audit_messages(svc, items)
             message_ids = items
         else:
-            lines, message_ids, not_trashed = audit_threads(svc, items)
+            lines, message_ids, not_trashed, empty = audit_threads(svc, items)
         if require_trashed:
             refuse_untrashed(not_trashed, k)
         if not message_ids:
             raise WxGmailError("Nothing to delete: the threads hold no messages.")
-        what = plural(len(items), k)
+        # An empty thread (require_trashed=false) has nothing to delete.
+        what = plural(len(items) - empty, k)
+        if empty:
+            what += f" ({plural(empty, 'empty thread')} skipped)"
         if dry_run:
             return "\n".join(
                 [
@@ -186,10 +194,12 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         try:
             gmail.batch_delete(svc, message_ids)
         except Exception as e:
+            one = len(items) - empty == 1
             head = (
-                f"The delete of {what} failed with {describe_error(e)}; they "
-                "may or may not have been deleted. A retry audits again and "
-                "reports a 404 for anything already gone. The items were:"
+                f"The delete of {what} failed with {describe_error(e)}; "
+                f"{'it' if one else 'they'} may or may not have been deleted. "
+                "A retry audits again and reports a 404 for anything already "
+                f"gone. The {'item was' if one else 'items were'}:"
             )
             return "\n".join([head, *lines])
         return "\n".join([f"Permanently deleted {what}:", *lines])

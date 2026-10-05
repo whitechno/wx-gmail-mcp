@@ -1,7 +1,8 @@
 """Filter tools, registered only with WX_GMAIL_ALLOW_SETTINGS=true.
 
-Every tool checks that the account granted ``gmail.settings.basic``: the
-settings endpoints accept no other scope, the full mail scope included.
+Every tool checks that the account granted ``gmail.settings.basic``. The
+write endpoints accept no other scope, the full mail scope included; the
+read tools apply the same check so the gate means one thing.
 """
 
 from __future__ import annotations
@@ -194,13 +195,14 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
     ) -> str:
         """Create a mail filter from criteria (`from_`, `to`, `subject`,
         `query`, `negated_query`, `has_attachment`, `exclude_chats`, `size`
-        in bytes) and actions (`add_labels`/`remove_labels` by name or id,
-        `create_missing_labels`, the shortcuts `skip_inbox`, `mark_read`,
-        `star`, `always_important`, `never_important`, `never_spam`,
-        `category`, and `delete` only with WX_GMAIL_ALLOW_DELETE). Future
-        mail only unless `apply=true`, which also relabels existing matches
-        up to `apply_limit`. `dry_run=true` (default) previews, changes
-        nothing."""
+        in bytes with `size_comparison` larger|smaller) and actions
+        (`add_labels`/`remove_labels` by name or id, `create_missing_labels`,
+        the shortcuts `skip_inbox`, `mark_read`, `star`, `always_important`,
+        `never_important`, `never_spam`, `category`
+        personal|social|promotions|updates|forums, and `delete` only with
+        WX_GMAIL_ALLOW_DELETE). Future mail only unless `apply=true`, which
+        also relabels existing matches up to `apply_limit`. `dry_run=true`
+        (default) previews, changes nothing."""
         req = FilterRequest(
             from_=from_,
             to=to,

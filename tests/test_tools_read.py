@@ -198,3 +198,17 @@ def test_api_errors_come_back_as_text(settings: Settings) -> None:
         tool_server(settings, fake), "read_message", account="work", message_id="x"
     )
     assert text == "Gmail API error: HTTP 404: gone"
+
+
+def test_search_strips_invisible_characters_from_snippets(
+    settings: Settings,
+) -> None:
+    padded = "Big\u200b sale \u034f \u034f \u034f \u2060now &amp; later \ufeff \u034f "
+    fake = _fake(
+        **{
+            "users.messages.list": {"messages": [{"id": "m1"}]},
+            "users.messages.get": message(snippet=padded),
+        }
+    )
+    text = call(tool_server(settings, fake), "search", account="work", query="x")
+    assert text.endswith("  Big sale now & later")
