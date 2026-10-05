@@ -19,9 +19,11 @@ Scripts are in this skill's `scripts/`; run them with `python3`.
 
 - If `wx-gmail-mcp` is installed: `wx-gmail-mcp --doctor` (with the gates
   from step 2 in the environment, once chosen). One line per check; `FAIL`
-  lines say what to fix. With no `FAIL` or `warn` line, resume at the
-  first step still open: step 6 if every `client` line says
-  `not registered`, else step 7. To **add an account** to a working
+  lines say what to fix. With no `FAIL` line and no `warn` line other
+  than `gcloud login` (which stops mattering once the client JSON is in
+  place), resume at the first step still open: step 6 if every `client`
+  line says `not registered`, else step 7. A `warn accounts: none`
+  means step 5. To **add an account** to a working
   install: add it as a test user (step 3.2, while in Testing), then
   step 5 for it. To **add a gate**: step 5 again for each account that
   gets it, then step 6 with the new env.
@@ -77,9 +79,10 @@ re-auth (step 5). Publishing removes that; see `references/gcloud.md`.
 
 `python3 scripts/install_client_json.py <downloaded file>` moves it to
 `<home>/oauth_client.json` with modes 700/600 after checking it is a
-Desktop app client. Without a path it takes the newest
-`client_secret*.json` in `~/Downloads`, but browsers often save into a
-subfolder, so prefer the path. Verify with `wx-gmail-mcp --doctor`.
+Desktop app client. Without a path it keeps a valid installed file,
+else takes the newest `client_secret*.json` in `~/Downloads`; browsers
+often save into a subfolder and another app's client may sit there, so
+prefer the path. Verify with `wx-gmail-mcp --doctor`.
 
 ## 5. Authorize
 

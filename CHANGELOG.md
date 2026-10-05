@@ -8,6 +8,9 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- README for the first release: what the server is and when a hosted
+  connector is the better choice, quick start with the setup skill or
+  by hand, the gates table, the tool overview by group, security notes.
 - The setup skill `.agents/skills/setting-up-wx-gmail-mcp/` (Agent
   Skills format, reachable from Claude Code through `.claude/skills`):
   seven idempotent steps from prerequisites to a verified registration,
