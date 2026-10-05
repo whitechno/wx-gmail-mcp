@@ -20,6 +20,10 @@ from wx_gmail_mcp.gmail import GmailService, header
 RE_PREFIX = re.compile(r"^re\s*:", re.IGNORECASE)
 FWD_PREFIX = re.compile(r"^fwd?\s*:", re.IGNORECASE)
 FORWARD_RULE = "---------- Forwarded message ---------"
+# Outgoing mail is not cut at the read cap; this guards against runaway
+# originals only. The tools say so when it applies.
+QUOTE_LIMIT = 200_000
+TRUNCATED_NOTE = "[original text cut here]"
 
 
 def build_raw(
@@ -126,7 +130,8 @@ def reply_recipients(
     A reply goes to ``Reply-To``, else ``From``; when this account sent the
     original, to its ``To`` recipients instead (as the web UI does).
     ``reply_all`` copies the other ``To`` and ``Cc`` recipients, minus this
-    account and anyone already in ``To``.
+    account and anyone already in ``To``. "This account" is the profile's
+    primary address; mail sent from a send-as alias counts as received.
     """
     me = self_address.strip().lower()
     sender = _addresses(orig.sender)
@@ -150,14 +155,21 @@ def join_recipients(*fields: str) -> str:
     return ", ".join(f.strip() for f in fields if f.strip())
 
 
-def quoted(orig: Original, max_chars: int) -> str:
+def original_text(orig: Original) -> tuple[str, bool]:
+    """The original's text (HTML rendered as text), and whether it was cut."""
+    text, cut = mime.plain_text(orig.payload, QUOTE_LIMIT)
+    return (f"{text}\n{TRUNCATED_NOTE}" if cut else text), cut
+
+
+def quoted(orig: Original) -> tuple[str, bool]:
     """The original as the web UI quotes it under a reply."""
-    lines = mime.body_text(orig.payload, max_chars).splitlines() or [""]
+    text, cut = original_text(orig)
+    lines = text.splitlines() or [""]
     quote = "\n".join(f"> {line}" if line else ">" for line in lines)
-    return f"On {orig.date}, {orig.sender} wrote:\n{quote}"
+    return f"On {orig.date}, {orig.sender} wrote:\n{quote}", cut
 
 
-def forwarded(orig: Original, max_chars: int) -> str:
+def forwarded(orig: Original) -> tuple[str, bool]:
     """The original under the web UI's forwarded-message header."""
     head = [
         FORWARD_RULE,
@@ -168,18 +180,31 @@ def forwarded(orig: Original, max_chars: int) -> str:
     ]
     if orig.cc:
         head.append(f"Cc: {orig.cc}")
-    return "\n".join(head) + "\n\n" + mime.body_text(orig.payload, max_chars)
+    text, cut = original_text(orig)
+    return "\n".join(head) + "\n\n" + text, cut
 
 
-def reply_body(body: str, orig: Original, quote: bool, max_chars: int) -> str:
+def reply_body(body: str, orig: Original, quote: bool) -> tuple[str, bool]:
     text = body.rstrip()
-    return f"{text}\n\n{quoted(orig, max_chars)}" if quote else text
+    if not quote:
+        return text, False
+    block, cut = quoted(orig)
+    return f"{text}\n\n{block}", cut
 
 
-def forward_body(body: str, orig: Original, max_chars: int) -> str:
+def forward_body(body: str, orig: Original) -> tuple[str, bool]:
     text = body.rstrip()
-    block = forwarded(orig, max_chars)
-    return f"{text}\n\n{block}" if text else block
+    block, cut = forwarded(orig)
+    return (f"{text}\n\n{block}" if text else block), cut
+
+
+def cut_note(cut: bool) -> str:
+    if not cut:
+        return ""
+    return (
+        f" The original text was longer than {QUOTE_LIMIT} characters and was "
+        "cut; forward with as_attachment=true to pass on the whole message."
+    )
 
 
 def _blob_type(mime_type: str) -> tuple[str, str]:

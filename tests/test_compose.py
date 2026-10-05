@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from wx_gmail_mcp import compose
 from wx_gmail_mcp.compose import Original
 
@@ -94,16 +96,18 @@ def test_reply_to_own_message_goes_to_its_recipients() -> None:
 
 def test_quoted_and_forwarded_blocks() -> None:
     o = _orig()
-    assert compose.quoted(o, 1000) == (
+    assert compose.quoted(o) == (
         "On Fri, 02 Oct 2026 10:00:00 +0000, Alice <alice@example.com> wrote:\n"
         "> line 1\n"
-        "> line 2"
+        "> line 2",
+        False,
     )
-    assert compose.reply_body("Thanks!\n", o, True, 1000) == (
-        "Thanks!\n\n" + compose.quoted(o, 1000)
+    assert compose.reply_body("Thanks!\n", o, True) == (
+        "Thanks!\n\n" + compose.quoted(o)[0],
+        False,
     )
-    assert compose.reply_body("Thanks!\n", o, False, 1000) == "Thanks!"
-    assert compose.forwarded(o, 1000) == (
+    assert compose.reply_body("Thanks!\n", o, False) == ("Thanks!", False)
+    assert compose.forwarded(o) == (
         "---------- Forwarded message ---------\n"
         "From: Alice <alice@example.com>\n"
         "Date: Fri, 02 Oct 2026 10:00:00 +0000\n"
@@ -111,19 +115,47 @@ def test_quoted_and_forwarded_blocks() -> None:
         "To: Me <me@example.com>, Bob <bob@example.com>\n"
         "Cc: carol@example.com, ME@EXAMPLE.COM\n"
         "\n"
-        "line 1\nline 2"
+        "line 1\nline 2",
+        False,
     )
-    assert compose.forward_body("", o, 1000) == compose.forwarded(o, 1000)
-    assert compose.forward_body("FYI", o, 1000).startswith("FYI\n\n----------")
-    # Long bodies are cut like read_message cuts them.
-    assert compose.quoted(o, 4) == (
-        "On Fri, 02 Oct 2026 10:00:00 +0000, Alice <alice@example.com> wrote:\n"
-        "> line\n"
-        "> ...[truncated]"
-    )
+    assert compose.forward_body("", o) == compose.forwarded(o)
+    assert compose.forward_body("FYI", o)[0].startswith("FYI\n\n----------")
     # An empty original body still produces a quote marker line.
     empty = Original.from_message(message("m1", "t1", body=""))
-    assert compose.quoted(empty, 10).endswith("wrote:\n>")
+    assert compose.quoted(empty)[0].endswith("wrote:\n>")
+
+
+def test_html_only_original_is_quoted_as_text() -> None:
+    html = (
+        "<html><head><style>p{color:red}</style></head><body>"
+        "<p>Hello <b>there</b>,</p><p>Prices &amp; terms:</p>"
+        "<ul><li>one</li><li>two</li></ul><br>Bye<script>x()</script></body></html>"
+    )
+    parts: list[dict[str, Any]] = [
+        {"partId": "0", "mimeType": "text/html", "body": {"data": b64(html)}}
+    ]
+    o = Original.from_message(message("m1", "t1", parts=parts))
+    text, cut = compose.quoted(o)
+    assert not cut
+    assert text.endswith(
+        "wrote:\n> Hello there,\n>\n> Prices & terms:\n>\n> - one\n> - two\n>\n> Bye"
+    )
+    assert "<" not in text.split("wrote:", 1)[1]
+
+
+def test_runaway_original_is_cut_and_flagged(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(compose, "QUOTE_LIMIT", 6)
+    o = _orig()
+    assert compose.quoted(o) == (
+        "On Fri, 02 Oct 2026 10:00:00 +0000, Alice <alice@example.com> wrote:\n"
+        "> line 1\n"
+        "> [original text cut here]",
+        True,
+    )
+    assert compose.forwarded(o)[1] is True
+    assert compose.reply_body("x", o, False) == ("x", False)
+    assert "longer than 6 characters" in compose.cut_note(True)
+    assert compose.cut_note(False) == ""
 
 
 def test_blob_type() -> None:

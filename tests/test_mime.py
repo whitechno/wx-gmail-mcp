@@ -124,3 +124,41 @@ def test_body_skips_inlined_text_attachments() -> None:
         {"mimeType": "text/plain", "body": {"data": b64("real body")}},
     ]
     assert mime.body_text(message(parts=parts)["payload"], 100) == "real body"
+
+
+def test_html_to_text() -> None:
+    html = (
+        "<div>Line one<br>line two</div><p>Para &lt;x&gt;&nbsp;&amp; y</p>"
+        "<table><tr><td>a</td><td>b</td></tr></table>"
+        "<style>.x{}</style><script>alert(1)</script>"
+        "<h1>  Head  </h1>\n\n\n<a href='https://example.com'>link</a>"
+    )
+    assert mime.html_to_text(html) == (
+        "Line one\nline two\n\nPara <x> & y\n\nab\n\nHead\n\nlink"
+    )
+    assert mime.html_to_text("") == ""
+    assert mime.html_to_text("plain") == "plain"
+
+
+def test_plain_text_prefers_text_part_then_renders_html() -> None:
+    from .conftest import b64, message
+
+    both = message(
+        "m1",
+        "t1",
+        parts=[
+            {"partId": "0", "mimeType": "text/plain", "body": {"data": b64("text")}},
+            {"partId": "1", "mimeType": "text/html", "body": {"data": b64("<b>h</b>")}},
+        ],
+    )
+    assert mime.plain_text(both["payload"], 100) == ("text", False)
+    only_html = message(
+        "m1",
+        "t1",
+        parts=[
+            {"partId": "0", "mimeType": "text/html", "body": {"data": b64("<b>h</b>")}}
+        ],
+    )
+    assert mime.plain_text(only_html["payload"], 100) == ("h", False)
+    assert mime.plain_text(both["payload"], 2) == ("te", True)
+    assert mime.plain_text({}, 10) == ("", False)

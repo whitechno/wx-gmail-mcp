@@ -6,6 +6,8 @@ from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
+
 from wx_gmail_mcp import mime
 from wx_gmail_mcp.config import BASE_SCOPES, SCOPE_SEND
 from wx_gmail_mcp.server import build_server
@@ -85,7 +87,7 @@ def test_reply(tmp_path: Path) -> None:
     )
     assert text == (
         "Replied to m1 (To: Alice <alice@example.com> | Subj: Re: Plans). "
-        "message id=m9 thread id=t1"
+        "message id=m9 thread id=t1."
     )
     (got,) = fake.calls_to("users.messages.get")
     assert got == {"userId": "me", "id": "m1", "format": "full"}
@@ -132,6 +134,39 @@ def test_reply_all_without_quote_with_extras(tmp_path: Path) -> None:
     assert msg.get_body().get_content() == "All\n"  # type: ignore[union-attr]
     (att,) = msg.iter_attachments()
     assert att.get_filename() == "a.txt"
+
+
+def test_reply_quotes_html_only_original_as_text(tmp_path: Path) -> None:
+    parts: list[dict[str, Any]] = [
+        {
+            "partId": "0",
+            "mimeType": "text/html",
+            "body": {"data": b64("<p>Hi <b>you</b></p><p>Bye</p>")},
+        }
+    ]
+    fake = _fake(message("m1", "t1", headers=HEADERS, parts=parts))
+    call(_server(tmp_path, fake), "reply", account="work", message_id="m1", body="ok")
+    _, msg = _sent(fake)
+    assert msg.get_content().endswith("wrote:\n> Hi you\n>\n> Bye\n")
+
+
+def test_reply_reports_a_cut_original(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from wx_gmail_mcp import compose
+
+    monkeypatch.setattr(compose, "QUOTE_LIMIT", 3)
+    fake = _fake(message("m1", "t1", headers=HEADERS, body="long body"))
+    text = call(
+        _server(tmp_path, fake), "reply", account="work", message_id="m1", body="ok"
+    )
+    assert text.endswith(
+        "message id=m9 thread id=t1. The original text was longer than 3 "
+        "characters and was cut; forward with as_attachment=true to pass on "
+        "the whole message."
+    )
+    _, msg = _sent(fake)
+    assert msg.get_content().endswith("> lon\n> [original text cut here]\n")
 
 
 def test_reply_to_own_sent_message_goes_to_its_recipients(tmp_path: Path) -> None:
@@ -192,7 +227,7 @@ def test_forward_quotes_and_reattaches(tmp_path: Path) -> None:
     )
     assert text == (
         "Forwarded m1 (To: dan@example.com | Subj: Fwd: Plans). "
-        "message id=m9 thread id=t1"
+        "message id=m9 thread id=t1."
     )
     (att_get,) = fake.calls_to("users.messages.attachments.get")
     assert att_get == {"userId": "me", "messageId": "m1", "id": "att1"}

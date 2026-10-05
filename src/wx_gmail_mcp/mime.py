@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from email import message_from_bytes, policy
 from email.message import EmailMessage
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -90,6 +91,84 @@ def body_text(payload: dict[str, Any], max_body: int) -> str:
     if len(text) > max_body:
         text = text[:max_body] + TRUNCATED_MARKER
     return text
+
+
+_BLOCK_TAGS = frozenset(
+    {
+        "p",
+        "div",
+        "br",
+        "li",
+        "tr",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "blockquote",
+        "pre",
+        "table",
+        "ul",
+        "ol",
+        "hr",
+        "section",
+        "article",
+        "header",
+        "footer",
+    }
+)
+_SKIP_TAGS = frozenset({"script", "style", "head", "title"})
+
+
+class _TextExtractor(HTMLParser):
+    """Visible text of an HTML body: block tags become line breaks, script
+    and style content is dropped, entities are decoded."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self._skip = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in _SKIP_TAGS:
+            self._skip += 1
+        elif tag in _BLOCK_TAGS:
+            self.parts.append("\n- " if tag == "li" else "\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in _SKIP_TAGS:
+            self._skip = max(0, self._skip - 1)
+        elif tag in _BLOCK_TAGS and tag not in ("br", "li"):
+            self.parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if not self._skip:
+            self.parts.append(data)
+
+
+def html_to_text(html: str) -> str:
+    """A plain-text rendering of HTML, for quoting an HTML-only original."""
+    extractor = _TextExtractor()
+    extractor.feed(html)
+    extractor.close()
+    lines = [
+        re.sub(r"[ \t\xa0]+", " ", line).strip()
+        for line in "".join(extractor.parts).splitlines()
+    ]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
+def plain_text(payload: dict[str, Any], max_chars: int) -> tuple[str, bool]:
+    """The original's text for outgoing mail: the text/plain part, else the
+    HTML part rendered as text. Returns the text and whether it was cut."""
+    text = _first_body(payload, "text/plain")
+    if text is None:
+        html = _first_body(payload, "text/html")
+        text = html_to_text(html) if html else ""
+    if len(text) > max_chars:
+        return text[:max_chars], True
+    return text, False
 
 
 @dataclass(frozen=True)
