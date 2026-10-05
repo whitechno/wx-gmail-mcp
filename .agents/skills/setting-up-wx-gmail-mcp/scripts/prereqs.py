@@ -86,13 +86,9 @@ def main() -> int:
             "uv tool install git+https://github.com/whitechno/wx-gmail-mcp",
         )
 
-    home = os.environ.get("WX_GMAIL_MCP_HOME", "").strip() or "~/.wx-gmail-mcp"
-    line(
-        "info",
-        "home",
-        f"{home}"
-        + (" (WX_GMAIL_MCP_HOME)" if "WX_GMAIL_MCP_HOME" in os.environ else ""),
-    )
+    override = os.environ.get("WX_GMAIL_MCP_HOME", "").strip()
+    home = override or "~/.wx-gmail-mcp"
+    line("info", "home", home + (" (WX_GMAIL_MCP_HOME)" if override else ""))
 
     return 1 if failed else 0
 

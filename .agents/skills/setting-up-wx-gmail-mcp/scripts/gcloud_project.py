@@ -35,9 +35,16 @@ def console_urls(project: str) -> dict[str, str]:
 
 
 def gcloud(gcloud_path: str, *args: str) -> tuple[int, str, str]:
-    done = subprocess.run(  # noqa: S603 - fixed argv, no shell
-        [gcloud_path, *args, "--quiet"], capture_output=True, text=True, check=False
-    )
+    try:
+        done = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            [gcloud_path, *args, "--quiet"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        return 1, "", "gcloud timed out after 120 s"
     return done.returncode, done.stdout.strip(), done.stderr.strip()
 
 

@@ -50,12 +50,13 @@ With gcloud:
 
 ```bash
 gcloud auth login                       # you, once
-gcloud projects create wx-gmail-mcp --name=wx-gmail-mcp
-gcloud services enable gmail.googleapis.com --project=wx-gmail-mcp
+gcloud projects create <project-id> --name=<project-id>
+gcloud services enable gmail.googleapis.com --project=<project-id>
 ```
 
-Project ids are global; if `wx-gmail-mcp` is taken, pick
-`wx-gmail-mcp-<something>` and use it everywhere below. Without gcloud:
+Project ids are global: use `wx-gmail-mcp` if it is free, else
+`wx-gmail-mcp-<something>`, and use the same id everywhere below.
+Without gcloud:
 [create a project](https://console.cloud.google.com/projectcreate) in
 the console, then open
 `https://console.cloud.google.com/apis/library/gmail.googleapis.com?project=<project-id>`

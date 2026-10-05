@@ -3,7 +3,7 @@
 
     install_client_json.py              newest client_secret_*.json in ~/Downloads
     install_client_json.py PATH         that file
-    install_client_json.py --check      report the installed file only
+    install_client_json.py --check      report the installed file; fixes its modes
 
 The file is checked for the Desktop app shape (an ``installed`` key with
 client_id, client_secret, auth_uri and token_uri), moved (not copied) to
@@ -75,7 +75,9 @@ def secure(home: Path, target: Path) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("path", nargs="?", help="downloaded client JSON")
-    parser.add_argument("--check", action="store_true", help="report only")
+    parser.add_argument(
+        "--check", action="store_true", help="report the installed file, fix modes"
+    )
     args = parser.parse_args(argv)
 
     home = home_dir()

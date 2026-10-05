@@ -12,7 +12,7 @@ project is never touched.
 ```bash
 gcloud auth list                              # an ACTIVE account is needed
 gcloud projects describe <project-id>         # exists?
-gcloud projects create <project-id> --name=wx-gmail-mcp
+gcloud projects create <project-id> --name=<project-id>
 gcloud services enable gmail.googleapis.com --project=<project-id>
 gcloud services list --enabled --project=<project-id> \
   --filter=config.name:gmail.googleapis.com
