@@ -21,7 +21,9 @@ gcloud services list --enabled --project=<project-id> \
 `scripts/gcloud_project.py <project-id> --create --enable` runs exactly
 these, idempotently, and prints the console URLs for the rest. Project
 ids are global and permanent: if `wx-gmail-mcp` is taken, use a suffix
-such as `wx-gmail-mcp-<name>`. The Gmail API needs no billing account.
+such as `wx-gmail-mcp-<name>`. The script sets the display name to the
+id: two projects both named "wx-gmail-mcp" are indistinguishable in
+the console header. The Gmail API needs no billing account.
 
 Not logged in: `gcloud auth login` opens a browser (**[you]**).
 Not installed: skip to the console; nothing below needs gcloud.
@@ -46,13 +48,16 @@ no organization, Create. Then enable the API from
 A new project shows a "Get started" wizard at
 `https://console.cloud.google.com/auth/overview?project=<project-id>`:
 
-1. App information: app name `WX Gmail MCP`, user support email: the
-   user's address.
+1. App information: app name `WX Gmail MCP` (any name; it need not be
+   unique across projects, but a distinct name tells two consent
+   screens apart), user support email: picked from a dropdown of the
+   signed-in account's addresses.
 2. Audience: **External**.
-3. Contact information: the user's address.
+3. Contact information: the user's address, typed.
 4. Finish: a checkbox to agree to the Google API Services User Data
    Policy. **[you]**: the user ticks it and clicks Continue, then
-   Create.
+   Create. The wizard keeps nothing until Create: a reload empties
+   every field.
 
 Then, at `https://console.cloud.google.com/auth/audience?project=<project-id>`,
 under **Test users**, Add users: every Gmail address that will be
@@ -69,28 +74,36 @@ Create client:
 
 - Application type: **Desktop app**.
 - Name: `wx-gmail-mcp-desktop`.
-- "This client will be used by an AI-powered agent": leave it
-  **unchecked**. See the note below.
-- Create. On the confirmation dialog, **Download JSON**; the file is
-  `client_secret_<id>.json` in the browser's download folder. If the
-  browser asks where to save or whether to keep the download, that is
-  **[you]**. A browser tool may leave only a temporary file in the
-  download folder; `scripts/install_client_json.py <path>` takes any
-  path. The JSON can be downloaded again later from the client's row.
+- "This client will be used by an AI-powered agent": tick it. See the
+  note below.
+- Create. The confirmation dialog shows the client id and, once only,
+  the secret. **[you]**: **Download JSON** (a download is the user's
+  action) and OK. The file is `client_secret_<id>.json`, about 400
+  bytes, in the browser's download folder, which may be a per-site
+  subfolder rather than `~/Downloads` (Chrome put it under
+  `~/Downloads/Chrome/<profile>/<site>/` in testing). Give
+  `scripts/install_client_json.py` that path. The JSON can be
+  downloaded again later from the client's row on the Clients page.
 
 The client JSON holds the client id and secret. It goes to
 `<home>/oauth_client.json` (step 4 of the skill) and nowhere else.
 
 ### The "AI-powered agent" option
 
-The console's client form has a checkbox "This client will be used by
-an AI-powered agent". It is a declaration for Google's app review; it
-changes nothing in how the OAuth flow works for this server. Leave it
-unchecked: wx-gmail-mcp is an ordinary installed application that the
-user runs and authorizes in person, and its scopes are requested at
-runtime from a consent screen the user sees. Revisit this if the app is
-ever published and submitted for verification. (Checked 2026-10-05 in
-the console; Google's OAuth docs do not describe the option.)
+The client form has a checkbox "This client will be used by an
+AI-powered agent". Its help text in the console (2026-10-05) reads:
+"Designates this client for AI agents that take actions on behalf of
+users. If your application supports both AI agent workflows and
+standard user features, use separate OAuth clients for each." Google's
+public OAuth documentation does not describe the option.
+
+That is what wx-gmail-mcp is, so tick it. It is a declaration to
+Google, not a switch: with it ticked, the Desktop client type, the
+loopback redirect, the consent screens and the granted scopes were
+identical to an unticked client in a side-by-side test (Testing
+status, a test user, base scopes). A client created without it works
+the same today. Whatever Google ties to the flag later (review,
+policy, consent wording) will apply to clients that declared it.
 
 ## Publishing status
 

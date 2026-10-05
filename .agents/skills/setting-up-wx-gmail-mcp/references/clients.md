@@ -23,7 +23,14 @@ Notes that matter in practice:
 
 - **Codex** allows 10 s for a server to start by default; the printed
   TOML carries `startup_timeout_sec = 30`. Keep it: without it Codex
-  may report the tools as unavailable.
+  may report the tools as unavailable. On a heavily loaded machine even
+  30 s was once too short; raise it rather than retry. `codex mcp add`
+  does not set it (add the line by hand) and rewrites the whole
+  `config.toml` when it saves, normalizing other tables' values (an
+  existing `30` came back as `30.0`, harmless). Codex 0.160 loads MCP
+  tools through its own discovery step: if it answers that the server's
+  tools "aren't exposed", ask it in the prompt to discover the server's
+  tools first.
 - **Claude Code** starts the server once per process and keeps it
   across `/clear`. After installing, upgrading or changing gates,
   restart Claude Code (or `claude mcp remove` and add again) before

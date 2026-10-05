@@ -62,19 +62,21 @@ needs their own project (one consent screen per project):
    added as a test user. **[you]** sign-in, the policy acceptance on the
    wizard's last step, and any 2FA prompt.
 3. **Desktop client** (console only): Clients > Create client, type
-   Desktop app, name `wx-gmail-mcp-desktop`, create, then **Download
-   JSON**. Leave the "AI-powered agent" option as `references/gcloud.md`
-   says. **[you]** the download confirmation if the browser asks.
+   Desktop app, name `wx-gmail-mcp-desktop`, tick "used by an
+   AI-powered agent" (`references/gcloud.md` says why), create. **[you]**
+   **Download JSON** on the confirmation dialog, and say where the
+   browser saved it.
 
 The app stays in **Testing**: tokens expire after 7 days and need a
 re-auth (step 5). Publishing removes that; see `references/gcloud.md`.
 
 ## 4. Client JSON
 
-`python3 scripts/install_client_json.py` moves the newest
-`client_secret*.json` from `~/Downloads` to `<home>/oauth_client.json`
-with modes 700/600, after checking it is a Desktop app client. Pass a
-path if it was saved elsewhere. Verify with `wx-gmail-mcp --doctor`.
+`python3 scripts/install_client_json.py <downloaded file>` moves it to
+`<home>/oauth_client.json` with modes 700/600 after checking it is a
+Desktop app client. Without a path it takes the newest
+`client_secret*.json` in `~/Downloads`, but browsers often save into a
+subfolder, so prefer the path. Verify with `wx-gmail-mcp --doctor`.
 
 ## 5. Authorize
 
@@ -85,12 +87,13 @@ step 2 gates in the environment (none for a base-scope account):
 WX_GMAIL_ALLOW_SETTINGS=true wx-gmail-mcp --auth <alias> --email you@example.com
 ```
 
-**[you]** sign in, pass the "unverified app" screen (Advanced > Go to WX
-Gmail MCP), tick every scope, allow. The command prints the address it
-confirmed and the scopes granted. `wx-gmail-mcp --list` shows every
-account. Run it from an MCP client only if the client allows a browser
-to open; a sandbox may block the loopback flow. Aliases: letters,
-digits, `-`, `_`.
+**[you]** sign in, pass the "Google hasn't verified this app" screen
+(Continue in Testing status), tick every scope, allow. The command
+prints the address it confirmed and the scopes granted; `wx-gmail-mcp
+--list` shows every account. It needs a terminal where a browser can
+open (an MCP client's sandbox may block the loopback flow); if no
+browser opens, it prints the URL to visit. Aliases: letters, digits,
+`-`, `_`.
 
 ## 6. Register
 

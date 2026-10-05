@@ -83,14 +83,17 @@ scopes when you authorize.
 **Clients** > **Create client**:
 
 - Application type **Desktop app**, name `wx-gmail-mcp-desktop`.
-- Leave **"This client will be used by an AI-powered agent"**
-  unchecked. It is a declaration for Google's app review and changes
-  nothing in the OAuth flow; wx-gmail-mcp is an installed application
-  that you run and authorize yourself. Google's public OAuth docs do not
-  describe the option (checked 2026-10-05).
+- Tick **"This client will be used by an AI-powered agent"**. The
+  console's help text says it "designates this client for AI agents
+  that take actions on behalf of users", which is what an MCP server
+  does. It is a declaration to Google, not a switch: in a side-by-side
+  test on 2026-10-05 the consent screens and granted scopes were the
+  same with and without it, and Google's public OAuth docs do not
+  describe it. A client created without it works too.
 - **Create**, then **Download JSON** in the confirmation dialog. The
-  file is called `client_secret_<id>.json`. You can download it again
-  later from the client's row.
+  file is called `client_secret_<id>.json`; note where the browser put
+  it (Chrome may use a subfolder of Downloads). You can download it
+  again later from the client's row.
 
 ### 3d. Put the client JSON in place
 
@@ -123,8 +126,9 @@ wx-gmail-mcp --list
 ```
 
 A browser opens (**you**): pick the account, pass the "Google hasn't
-verified this app" screen with **Advanced** > **Go to WX Gmail MCP**,
-tick every scope, **Allow**. The command confirms the address Gmail
+verified this app" screen (**Continue** while the app is in Testing;
+**Advanced** > **Go to WX Gmail MCP** once it is published), tick every
+scope, **Allow**. The command confirms the address Gmail
 reports and the scopes granted; tokens land in
 `~/.wx-gmail-mcp/tokens/<alias>.json` with mode 600. Aliases use
 letters, digits, `-` and `_`.

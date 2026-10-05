@@ -5,9 +5,12 @@ every `FAIL` line names its fix. Then the cases below.
 
 ## Authorizing
 
-- **"Google hasn't verified this app"** on the consent screen: expected
-  for a personal project. Click Advanced, then "Go to WX Gmail MCP
-  (unsafe)". Nothing is unsafe about it: the user owns the app.
+- **"Google hasn't verified this app"** before the consent screen:
+  expected for a personal project. In Testing status the page says
+  "You've been given access to an app that's currently being tested"
+  and offers **Continue**; for a published, unverified app it hides the
+  way forward under **Advanced** > "Go to WX Gmail MCP (unsafe)".
+  Nothing is unsafe about it: the user owns the app.
 - **"Access blocked: WX Gmail MCP has not completed the Google
   verification process" / error 403 access_denied**: the account is not
   a test user and the app is in Testing. Add it under Audience > Test
@@ -50,10 +53,12 @@ every `FAIL` line names its fix. Then the cases below.
 
 ## Registration
 
-- **Codex: tools "unavailable" or missing**: the server took longer
-  than Codex's 10 s default; set `startup_timeout_sec = 30` in the
-  `[mcp_servers.wx-gmail-mcp]` table (`--print-config codex` includes
-  it).
+- **Codex: tools "unavailable", "not exposed" or missing**: the server
+  took longer than Codex's 10 s default; set `startup_timeout_sec = 30`
+  in the `[mcp_servers.wx-gmail-mcp]` table (`--print-config codex`
+  includes it), more on a loaded machine. Codex 0.160 also discovers
+  MCP tools in a step of its own; asking it to discover the server's
+  tools first helps.
 - **Claude Code shows an old tool list** after an upgrade or a gate
   change: it keeps the server process across `/clear`; restart Claude
   Code.
