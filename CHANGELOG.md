@@ -8,6 +8,14 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Draft management, always on: `list_drafts` (newest first, Gmail query
+  syntax, paged), `get_draft` (headers, attachments, body),
+  `update_draft` (replaces the content with the same fields as
+  `create_draft`; a reply draft keeps its thread and reply headers) and
+  `delete_draft` (an id list, up to 100, one call each; immediate, no
+  Trash). `send_draft`, registered only with `WX_GMAIL_ALLOW_SENDING=true`
+  and only usable by accounts that granted the send scope, sends a draft
+  as stored and reports the recipient and subject it had.
 - `trash` and `untrash`, registered only with `WX_GMAIL_ALLOW_DELETE=true`
   and only usable by accounts that granted the full mail scope. Both take
   an id list of messages (default) or whole threads (`kind="thread"`), up

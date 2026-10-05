@@ -37,8 +37,12 @@ ALWAYS_ON = {
     "modify_thread_labels",
     "modify_by_query",
     "create_draft",
+    "list_drafts",
+    "get_draft",
+    "update_draft",
+    "delete_draft",
 }
-SENDING: set[str] = {"send_message"}
+SENDING: set[str] = {"send_message", "send_draft"}
 SETTINGS: set[str] = {
     "list_filters",
     "get_filter",
