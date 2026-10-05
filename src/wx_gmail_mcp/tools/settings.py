@@ -46,7 +46,8 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         """Replace the vacation responder. Gmail has no partial update: every
         field left out is cleared, so get_vacation first and pass what must
         stay. `enabled` turns replies on or off; the message is `body`
-        (plain) and/or `html`, required when enabled. `start_date` and
+        (plain) or `html` (Gmail keeps only `html` when both are given),
+        required when enabled. `start_date` and
         `end_date` (YYYY-MM-DD) are the first and last day, inclusive, at
         midnight in the machine's zone or the IANA `timezone`; without them
         the responder runs until turned off. `contacts_only` and
@@ -54,13 +55,13 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         resource = vacation.body(
             enabled,
             subject,
-            body,
-            html,
-            start_date,
-            end_date,
-            contacts_only,
-            domain_only,
-            timezone,
+            plain=body,
+            html=html,
+            start_date=start_date,
+            end_date=end_date,
+            contacts_only=contacts_only,
+            domain_only=domain_only,
+            timezone=timezone,
         )
         svc = service(account)
         updated = gmail.update_vacation(svc, resource)
@@ -82,9 +83,10 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
 
     def set_signature(account: str, signature: str, send_as_email: str = "") -> str:
         """Set the signature of one send-as identity: the primary address
-        unless `send_as_email` names an alias from list_send_as. `signature`
-        is HTML (Gmail sanitizes it); an empty string removes it. Nothing
-        else about the identity changes."""
+        unless `send_as_email` names an alias from list_send_as (Gmail lets
+        only Workspace service accounts change an alias, so expect a
+        refusal on a personal account). `signature` is HTML (Gmail sanitizes
+        it); an empty string removes it. Nothing else changes."""
         svc = service(account)
         identity = sendas.find(gmail.list_send_as(svc), send_as_email)
         target = sendas.address(identity)
