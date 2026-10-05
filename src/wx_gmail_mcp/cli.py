@@ -1,21 +1,22 @@
 """Command-line entry point.
 
 ``--auth`` and ``--list`` run in a terminal (OAuth opens a browser, and
-an MCP client's sandbox may block the loopback flow). With no command the
-process serves MCP over stdio. ``--doctor`` and ``--print-config`` arrive
-in later phases.
+an MCP client's sandbox may block the loopback flow). ``--print-config``
+prints the registration block for a client. With no command the process
+serves MCP over stdio. ``--doctor`` arrives in a later phase.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections.abc import Sequence
 
 from google.auth.exceptions import GoogleAuthError
 from googleapiclient.errors import HttpError
 
-from wx_gmail_mcp import __version__, auth, server
+from wx_gmail_mcp import __version__, auth, clients, server
 from wx_gmail_mcp.config import Settings
 from wx_gmail_mcp.errors import WxGmailError
 
@@ -42,6 +43,16 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument(
         "--list", action="store_true", help="list accounts, token health, scopes"
     )
+    command.add_argument(
+        "--print-config",
+        metavar="CLIENT",
+        choices=clients.HARNESS_NAMES,
+        help=(
+            "print a ready-to-paste registration block for an MCP client "
+            f"({', '.join(clients.HARNESS_NAMES)}), with the gates on in the "
+            "current environment"
+        ),
+    )
     parser.add_argument(
         "--email", metavar="ADDRESS", help="account to sign in with (for --auth)"
     )
@@ -62,6 +73,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.list:
             print("\n".join(auth.account_status_lines(settings)))
+            return 0
+        if args.print_config is not None:
+            block, hint = clients.print_config(args.print_config, settings, os.environ)
+            print(block, end="")
+            print(f"# {hint}", file=sys.stderr)
             return 0
     except WxGmailError as e:
         print(f"{PROG}: error: {e}", file=sys.stderr)

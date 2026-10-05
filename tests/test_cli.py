@@ -114,3 +114,39 @@ def test_no_command_serves(env_home: Path, monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(server, "serve", served.append)
     assert main([]) == 0
     assert served[0].home == env_home
+
+
+def test_print_config_reads_gates_from_env_and_prints_no_secret(
+    env_home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import json
+
+    from wx_gmail_mcp.config import SCOPE_SEND
+
+    from .conftest import make_settings, write_client, write_token
+
+    s = make_settings(env_home)
+    write_client(s)
+    write_token(s, "work", (SCOPE_SEND,), refresh_token="placeholder-refresh")
+    monkeypatch.setenv("WX_GMAIL_ALLOW_SETTINGS", "TRUE")
+    monkeypatch.setattr(server, "serve", lambda s: pytest.fail("served"))
+    assert main(["--print-config", "gemini"]) == 0
+    captured = capsys.readouterr()
+    entry = json.loads(captured.out)["mcpServers"]["wx-gmail-mcp"]
+    assert Path(entry["command"]).is_absolute()
+    assert entry["env"] == {
+        "WX_GMAIL_ALLOW_SETTINGS": "true",
+        "WX_GMAIL_MCP_HOME": str(env_home),
+    }
+    assert captured.err.startswith("# Gemini CLI: merge into ~/.gemini/settings.json")
+    for secret in ("placeholder-secret", "placeholder-refresh", "placeholder-access"):
+        assert secret not in captured.out + captured.err
+
+
+def test_print_config_rejects_unknown_client(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["--print-config", "vim"])
+    assert exc.value.code == 2
+    assert "invalid choice: 'vim'" in capsys.readouterr().err
