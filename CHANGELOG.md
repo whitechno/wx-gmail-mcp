@@ -8,6 +8,17 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- The setup skill `.agents/skills/setting-up-wx-gmail-mcp/` (Agent
+  Skills format, reachable from Claude Code through `.claude/skills`):
+  seven idempotent steps from prerequisites to a verified registration,
+  with the sign-in, policy-acceptance and consent steps left to the
+  user, and three stdlib-only scripts (`prereqs.py` before the install,
+  `gcloud_project.py` for the project and the Gmail API, and
+  `install_client_json.py`, which moves the downloaded Desktop client
+  JSON into place with modes 700/600 after checking its shape).
+  References cover gcloud and console steps, client registration and
+  troubleshooting. `docs/SETUP-GOOGLE-CLOUD.md` is the human-readable
+  twin.
 - `wx-gmail-mcp --doctor` checks an installation and prints one line per
   check: Python and `uv`, whether `gcloud` is installed and logged in,
   the home directory and its modes, the OAuth client file's shape (a
