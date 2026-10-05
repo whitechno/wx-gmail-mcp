@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import MCPServer
 
 from wx_gmail_mcp import gmail, mime
@@ -130,15 +131,23 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         if not 1 <= max_results <= MAX_LIST_RESULTS:
             raise WxGmailError(f"max_results must be between 1 and {MAX_LIST_RESULTS}.")
         svc = rt.service(account)
-        page = gmail.list_drafts(svc, query.strip(), max_results, page_token)
+        page = gmail.list_drafts(svc, query.strip(), max_results, page_token.strip())
         drafts = page.get("drafts", []) or []
         if not drafts:
             return "No drafts."
         out = []
         for d in drafts:
+            draft_id = str(d.get("id", ""))
             message_id = str((d.get("message", {}) or {}).get("id", ""))
-            msg = gmail.get_message(svc, message_id, "metadata", LIST_HEADERS)
-            out.append(draft_line(str(d.get("id", "")), msg))
+            try:
+                msg = gmail.get_message(svc, message_id, "metadata", LIST_HEADERS)
+            except HttpError as e:
+                if e.resp.status != 404:
+                    raise
+                # Deleted between the list call and this one.
+                out.append(f"[draft {draft_id}] message {message_id} | (gone)")
+                continue
+            out.append(draft_line(draft_id, msg))
         if token := page.get("nextPageToken"):
             out.append(f"next_page_token: {token}")
         return "\n\n".join(out)
@@ -164,7 +173,8 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
     ) -> str:
         """Replace a draft's content with these fields (same as create_draft;
         anything not given is dropped, attachments included). A reply draft
-        stays in its conversation. Nothing is sent."""
+        keeps its thread and reply headers, so it stays in its conversation
+        as long as the subject still matches. Nothing is sent."""
         svc = rt.service(account)
         draft_id = draft_id.strip()
         existing = gmail.get_draft(svc, draft_id, "metadata")
@@ -190,8 +200,9 @@ def register(mcp: MCPServer, rt: Runtime) -> None:
         )
 
     def delete_draft(account: str, draft_ids: Sequence[str]) -> str:
-        """Delete drafts by id, up to 100 per call, one API call each. A
-        deleted draft is gone at once (no Trash); sent mail is not affected."""
+        """Delete unsent drafts by id, up to 100 per call, one API call each.
+        Permanent: Gmail has no Trash for drafts. Sent and received mail is
+        never affected."""
         ids = list(dict.fromkeys(require_ids(list(draft_ids), "draft_ids", MAX_IDS)))
         return delete_each(rt.service(account), ids)
 

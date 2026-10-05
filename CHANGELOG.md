@@ -12,8 +12,10 @@ the project uses [Semantic Versioning](https://semver.org/).
   syntax, paged), `get_draft` (headers, attachments, body),
   `update_draft` (replaces the content with the same fields as
   `create_draft`; a reply draft keeps its thread and reply headers) and
-  `delete_draft` (an id list, up to 100, one call each; immediate, no
-  Trash). `send_draft`, registered only with `WX_GMAIL_ALLOW_SENDING=true`
+  `delete_draft` (an id list, up to 100, one call each). Deleting a
+  draft is permanent and, like `delete_label`, not behind a gate: it
+  needs only the base scope and removes unsent drafts only (see
+  SECURITY.md). `send_draft`, registered only with `WX_GMAIL_ALLOW_SENDING=true`
   and only usable by accounts that granted the send scope, sends a draft
   as stored and reports the recipient and subject it had.
 - `trash` and `untrash`, registered only with `WX_GMAIL_ALLOW_DELETE=true`

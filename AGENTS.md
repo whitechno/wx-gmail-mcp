@@ -56,8 +56,9 @@ CI runs the same four checks on every PR and on `main`.
 - **Gated writes, server-side.** Sending, settings and trash/delete
   tools register only when their `WX_GMAIL_ALLOW_*` env gate is on, and
   each gate requests only the OAuth scope it needs. Guardrails never
-  depend on a client's approval prompts. The gates cover mail;
-  `delete_label` is always on (base scope, removes no message).
+  depend on a client's approval prompts. The gates cover mail. Two
+  always-on exceptions, both base scope: `delete_label` removes no
+  message; `delete_draft` removes unsent drafts only (no Trash step).
 - **Thin tools.** Tools validate input, call helpers and format plain
   text output. Gmail plumbing lives in the helper modules.
 - **Nothing registers at import time.** `server.py` calls each tool

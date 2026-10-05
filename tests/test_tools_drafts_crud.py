@@ -97,6 +97,39 @@ def test_list_drafts_query_paging_and_empty(settings: Settings) -> None:
     assert len(fake.calls) == 1
 
 
+def test_list_drafts_skips_a_draft_deleted_meanwhile(settings: Settings) -> None:
+    def get(**kw: Any) -> dict[str, Any]:
+        if kw["id"] == "m2":
+            raise _http_error(404, "Requested entity was not found.")
+        return message(kw["id"], "t1")
+
+    fake = FakeGmail(
+        {
+            "users.drafts.list": {
+                "drafts": [
+                    {"id": "d1", "message": {"id": "m1"}},
+                    {"id": "d2", "message": {"id": "m2"}},
+                    {"id": "d3", "message": {"id": "m3"}},
+                ]
+            },
+            "users.messages.get": get,
+        }
+    )
+    text = call(tool_server(settings, fake), "list_drafts", account="work")
+    assert "[draft d1] message m1 |" in text
+    assert "[draft d2] message m2 | (gone)" in text
+    assert "[draft d3] message m3 |" in text
+    # Other failures still surface.
+    fake = FakeGmail(
+        {
+            "users.drafts.list": {"drafts": [{"id": "d1", "message": {"id": "m1"}}]},
+            "users.messages.get": lambda **kw: _raise(_http_error(500, "boom")),
+        }
+    )
+    text = call(tool_server(settings, fake), "list_drafts", account="work")
+    assert text == "Gmail API error: HTTP 500: boom"
+
+
 # --- get_draft --------------------------------------------------------------
 
 

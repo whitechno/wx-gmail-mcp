@@ -28,9 +28,12 @@ client. Things to know:
   empty-trash tool), is capped at 100 per call, accepts only mail already
   in Trash unless told otherwise, is a dry run by default and returns an
   audit trail. Mailbox forwarding is deliberately not exposed.
-- The gates cover mail. Deleting a *label* (`delete_label`) is always
-  on: it needs only the base `modify` scope and removes no message, but
-  it does take the label off every message for good.
+- The gates cover mail. Two tools are always on because they need only
+  the base `modify` scope: `delete_label` removes no message, but it
+  does take the label off every message for good; `delete_draft`
+  removes unsent drafts for good (Gmail has no Trash for drafts), by
+  explicit id, at most 100 per call, and never touches sent or received
+  mail.
 - File access is limited to `~/.wx-gmail-mcp/downloads/` and
   `~/.wx-gmail-mcp/outbox/`.
 
