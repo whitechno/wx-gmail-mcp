@@ -322,3 +322,12 @@ def test_run_oauth_notes_a_replaced_alias(tmp_path: Path) -> None:
         fetch_email=lambda creds: "you@example.com",
     )
     assert "replaced" not in second.text()
+    third = auth.run_oauth(
+        s,
+        "work",
+        "you@example.com",
+        authorize=_fake_authorize({}, list(BASE_SCOPES)),
+        fetch_email=lambda creds: "you@example.com",
+    )
+    assert "Note: refreshed the token 'work' for you@example.com." in third.text()
+    assert "replaced" not in third.text()

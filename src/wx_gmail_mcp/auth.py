@@ -291,13 +291,16 @@ def run_oauth(
         actual = email
         notes.append(f"Note: could not confirm the address with Gmail ({e}).")
     accounts.set_account(settings, alias, actual)
-    if previous:
+    if previous and previous.lower() == actual.lower():
+        notes.append(f"Note: refreshed the token '{alias}' for {previous}.")
+    elif previous:
         notes.append(f"Note: replaced the token '{alias}' held for {previous}.")
     granted_set = frozenset(granted)
-    for gate in ungranted_gates(settings, granted_set):
+    missing = ungranted_gates(settings, granted_set)
+    if missing:
         notes.append(
-            f"Warning: {gate.env} is on but the {scope_label(gate.scope)} "
-            "scope was not granted; its tools will fail until you re-run "
-            "--auth and allow it."
+            f"Warning: {gate_warning(missing)}; "
+            + ("its tools" if len(missing) == 1 else "their tools")
+            + " will fail until you re-run --auth and allow it."
         )
     return AuthResult(alias, email, actual, granted_set, tuple(notes))

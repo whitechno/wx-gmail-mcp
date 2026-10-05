@@ -63,8 +63,9 @@ An account authorized with fewer gates than the server runs with is a
 valid setup: the warning is informational, and that account refuses the
 gated tools with the same hint. Several unmet gates share one warning
 line (`... WX_GMAIL_ALLOW_SETTINGS and WX_GMAIL_ALLOW_DELETE are on but
-the settings.basic and full scopes are not granted; re-run: ...`). A token that cannot be refreshed shows
-`[needs re-auth: ...]` with the command to run.
+the settings.basic and full scopes are not granted; re-run: ...`). A
+token that cannot be refreshed shows `[needs re-auth: ...]` with the
+command to run.
 
 ### `add_account`
 

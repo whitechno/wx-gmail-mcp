@@ -6,7 +6,7 @@ import unicodedata
 
 # U+034F COMBINING GRAPHEME JOINER is a mark (Mn), not a format character,
 # yet it is invisible; marketing mail pads snippets with long runs of it.
-_INVISIBLE = frozenset({"͏"})
+_INVISIBLE = frozenset({"\u034f"})
 
 
 def clean_text(text: str) -> str:
