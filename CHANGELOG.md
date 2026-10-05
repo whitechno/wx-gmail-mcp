@@ -6,206 +6,136 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.0] - 2026-10-05
+
+The first release: a self-hosted, multi-account Gmail MCP server over
+stdio, 25 always-on tools plus 16 behind three opt-in gates, tested
+against Claude Code, Codex CLI and Antigravity CLI.
+
 ### Added
 
-- `docs/TOOLS.md`: the full tool catalogue, one section per group, each
-  tool with its gate, scope, parameters, defaults, worked examples and
-  the behaviors found in live use (untrash does not restore INBOX, an
-  identical `replace_filter` is refused by Gmail, `set_vacation`
-  replaces the whole responder and Gmail keeps only the HTML,
-  `set_signature` on an alias is refused for personal accounts,
-  attachment ids rotate so part numbers are the stable handle, the
-  `delete_permanently` audit trail). A test keeps its tool list and
-  every parameter table equal to the server's catalogue.
-- README for the first release: what the server is and when a hosted
-  connector is the better choice, quick start with the setup skill or
-  by hand, the gates table, the tool overview by group, security notes.
-- The setup skill `.agents/skills/setting-up-wx-gmail-mcp/` (Agent
-  Skills format, reachable from Claude Code through `.claude/skills`):
-  seven idempotent steps from prerequisites to a verified registration,
-  with the sign-in, policy-acceptance and consent steps left to the
-  user, and three stdlib-only scripts (`prereqs.py` before the install,
-  `gcloud_project.py` for the project and the Gmail API, and
-  `install_client_json.py`, which moves the downloaded Desktop client
-  JSON into place with modes 700/600 after checking its shape).
-  References cover gcloud and console steps, client registration and
-  troubleshooting. `docs/SETUP-GOOGLE-CLOUD.md` is the human-readable
-  twin.
-- `wx-gmail-mcp --doctor` checks an installation and prints one line per
-  check: Python and `uv`, whether `gcloud` is installed and logged in,
-  the home directory and its modes, the OAuth client file's shape (a
-  Desktop app client, never printing its contents), the gates on in the
-  environment, each account's token and granted scopes against those
-  gates, and which MCP clients (Claude Code, Claude Desktop, Codex,
-  Antigravity, Cursor) carry a registration, read from their config
-  files without changing them. Exits 1 on any failure.
-- `list_send_as` and `set_signature`, registered only with
-  `WX_GMAIL_ALLOW_SETTINGS=true` and only usable by accounts that granted
-  the `gmail.settings.basic` scope. `list_send_as` shows the primary
-  address and every alias with display name, reply-to, flags,
-  verification status and the signature as stored. `set_signature`
-  changes only the signature (HTML, or empty to remove it) of the primary
-  identity, or of the alias named by `send_as_email`, through
-  `sendAs.patch`; Gmail accepts alias changes only from Workspace service
-  accounts with domain-wide delegation, so a personal account can expect
-  a refusal there. No alias is created or verified: that needs the
-  sharing scope, which the server never requests.
-- `get_vacation` and `set_vacation`, registered only with
-  `WX_GMAIL_ALLOW_SETTINGS=true` and only usable by accounts that granted
-  the `gmail.settings.basic` scope. `get_vacation` shows the responder's
-  state, subject, plain and HTML message, first and last day and
-  restrictions. `set_vacation` replaces the whole responder (Gmail has no
-  partial update): on or off, subject, plain `body` or `html` (Gmail keeps
-  only the HTML when both are given), a first
-  and last day as dates (midnight in the machine's zone or an IANA
-  `timezone`) and contacts-only or same-domain-only delivery.
-- `reply` and `forward`, registered only with `WX_GMAIL_ALLOW_SENDING=true`
-  and only usable by accounts that granted the send scope. Both stay in
-  the original's conversation (Gmail thread id plus `In-Reply-To` and
-  `References`) and prefix the subject with `Re:` or `Fwd:`. A reply goes
-  to Reply-To or From, or to the original recipients when the account
-  sent it; `reply_all` copies the others minus the account itself; the
-  original text is quoted by default. A forward carries the original
-  text under a forwarded-message header with its attachments re-attached,
-  or, with `as_attachment`, the complete original as a `message/rfc822`
-  file. Both take outbox attachments.
-- Draft management, always on: `list_drafts` (newest first, Gmail query
-  syntax, paged), `get_draft` (headers, attachments, body),
-  `update_draft` (replaces the content with the same fields as
-  `create_draft`; a reply draft keeps its thread and reply headers) and
-  `delete_draft` (an id list, up to 100, one call each). Deleting a
-  draft is permanent and, like `delete_label`, not behind a gate: it
-  needs only the base scope and removes unsent drafts only (see
-  SECURITY.md). `send_draft`, registered only with `WX_GMAIL_ALLOW_SENDING=true`
-  and only usable by accounts that granted the send scope, sends a draft
-  as stored and reports the recipient and subject it had.
-- `trash` and `untrash`, registered only with `WX_GMAIL_ALLOW_DELETE=true`
-  and only usable by accounts that granted the full mail scope. Both take
-  an id list of messages (default) or whole threads (`kind="thread"`), up
-  to 100 per call, one API call each; a failure midway reports how many
-  were done. Trash is reversible; Gmail purges it after 30 days.
-- `delete_permanently` (same gate and scope): messages or whole threads
-  by explicit id only, at most 100 per call, no query form and no
-  empty-trash tool. By default only mail already in Trash is accepted
-  (`require_trashed`); every item's date, sender and subject are fetched
-  before deleting and returned as the audit trail; exactly those messages
-  are then deleted in one `batchDelete`, for threads too. `dry_run`
-  defaults to true and shows that trail without deleting anything.
-- `list_filters` and `get_filter`, registered only with
-  `WX_GMAIL_ALLOW_SETTINGS=true` and only usable by accounts that granted
-  the `gmail.settings.basic` scope. Each filter is shown with its
-  criteria, the equivalent Gmail search (the translation the web UI
-  uses for "also apply to matching conversations", in `query.py`) and
-  its action with label names.
-- `create_filter` (same gate and scope): criteria flags, labels by
-  name or id with `create_missing_labels`, the web UI's shortcuts
-  (`skip_inbox`, `mark_read`, `star`, `always_important`,
-  `never_important`, `never_spam`, `category`) and `delete`, which adds
-  TRASH and works only when `WX_GMAIL_ALLOW_DELETE` is also on. A filter
-  catches future mail; `apply=true` also relabels existing matches
-  through the same engine as `modify_by_query` (filter first, then the
-  apply, so mail arriving in between is caught; `apply_limit` default
-  5000). `dry_run` defaults to true and shows the filter, the labels it
-  would create and the matching mail without changing anything.
-- `delete_filter` (an id list, each filter shown as it was) and
-  `replace_filter` (Gmail has no filter update: the new filter is
-  created from the same flags as `create_filter`, then the old one is
-  deleted, then `apply` runs if asked; `dry_run` default true shows
-  both). Same gate and scope.
-- `create_label` (nested `Parent/Child`, missing parents created,
-  colors, visibility), `update_label` (rename or move, colors,
-  visibility) and `delete_label` (the label only, never its messages).
-  System labels are refused.
-- `modify_by_query`: add or remove labels on every message matching a
-  Gmail search. `dry_run` defaults to true and reports the match count
-  with a five-message sample; the call fails when more than `limit`
-  (default 5000) messages match. `modify_thread_labels` relabels whole
-  threads. Both share the search-and-relabel engine (`bulk.py`) that
-  filter apply will use.
-- `get_profile` (address, message and thread totals, history id),
-  `search_threads` (conversations with message count, last message
-  headers, labels and snippet), `list_attachments` and
-  `download_attachment`, which saves one attachment (by id or file
-  name) under `~/.wx-gmail-mcp/downloads/` with mode 600 and never
-  overwrites unless asked.
-- Foundations: `config` (home dir, `WX_GMAIL_ALLOW_*` gates, gate to
-  scope mapping), `accounts` (alias validation, `accounts.json`), `auth`
-  (OAuth flow, token refresh, scope bookkeeping, re-auth hints), `gmail`
-  (service builder, pagination, `batchModify` in chunks of 1000),
-  `safety` (readable tool errors, id caps, `downloads/` and `outbox/`
-  path allowlist) and `server` (gated tool registration, no tools yet).
-- The eleven always-on tools ported from the predecessor, extended:
-  `list_accounts` (granted scopes, gate warnings), `add_account`,
-  `remove_account` (optional `revoke`), `search` (thread id and labels
-  per hit, `page_token`, `include_spam_trash`), `read_message` (thread
-  id, labels, Cc, attachment list), `read_thread` (per-message id and
-  labels, `max_body`), `list_labels` (type, opt-in counts), and
-  `modify_labels`, `mark_read`, `mark_unread`, `archive` on id lists via
-  `batchModify`. Labels are accepted by name or id.
-- `create_draft` (always on) and `send_message` (only with
-  `WX_GMAIL_ALLOW_SENDING=true`, and only if the account granted the
-  send scope), both with `cc`, `bcc`, `html`, `reply_to` and
-  `attachments` read from `~/.wx-gmail-mcp/outbox/`.
-- `docs/CLIENTS.md`: registration steps for Claude Code, Claude Desktop,
-  Codex CLI, Antigravity and Cursor, each checked against
-  the client's documentation, and a compatibility matrix from live runs
-  (Claude Code, Codex CLI and Antigravity CLI accepted all 41 tools with
-  no schema, name or rendering issue).
-- CLI: `--print-config <client>` prints a ready-to-paste registration
-  block for `claude-code` (a `claude mcp add` command), `claude-desktop`,
-  `codex` (TOML for `config.toml`), `antigravity` and `cursor` (JSON),
-  with the absolute path of the running executable, the gates that are
-  on in the current environment and the home override, if any; a line
-  on stderr says where the block goes. Nothing secret is read or
-  printed.
-- CLI: `--auth <alias> --email <address>` authorizes an account in the
-  browser; `--list` shows accounts, token health, granted scopes and
-  gates that are on but not granted; with no command the process serves
-  MCP over stdio.
-- Project scaffold: `pyproject.toml` (Python 3.14, uv, hatchling), the
-  `wx_gmail_mcp` package skeleton with `--version`, tests, ruff and
-  pyright configuration.
-- Repository guards: CI, gitleaks and private-pattern scan, CodeQL,
-  dependency review, zizmor, Dependabot, pre-commit hooks.
-- Automatic Claude review on pull requests with a verdict status check
-  and run stats; `@claude` on-demand assistance.
-- Community files: AGENTS.md, CONTRIBUTING.md, SECURITY.md, CODEOWNERS,
-  issue and PR templates.
+**Server and gates.** Every mailbox tool takes an account alias; results
+are plain text; tool schemas are flat (simple types, defaults instead of
+unions, no nested objects) so any MCP client can use them. Reading,
+searching, labels, organizing and drafts need only the base scopes
+(`gmail.readonly`, `gmail.modify`). Three gates add more, each with
+exactly one extra OAuth scope, and register their tools only when on:
+`WX_GMAIL_ALLOW_SENDING` (`gmail.send`), `WX_GMAIL_ALLOW_SETTINGS`
+(`gmail.settings.basic`) and `WX_GMAIL_ALLOW_DELETE` (the full
+`https://mail.google.com/` scope). Only the value `true` turns a gate on.
+A gate's tools refuse an account that has not granted its scope and name
+the re-auth command. Tokens record the scopes Google actually granted;
+`--auth` requests exactly the enabled gates' scopes, so turning a gate
+off narrows the next grant. Gmail API errors read `HTTP <status>:
+<message>`.
 
-### Changed
+**CLI.** `--auth <alias> --email <address>` authorizes an account in the
+browser (the loopback flow runs in a terminal, outside the client's
+sandbox) and notes a replaced alias; `--list` shows accounts, token
+health, granted scopes and one warning per account for gates that are
+on but not granted; `--print-config <client>` prints a ready-to-paste
+registration for `claude-code`, `claude-desktop`, `codex`, `antigravity`
+or `cursor` with the absolute executable path and the gates on in the
+environment; `--doctor` checks the installation (Python and `uv`,
+`gcloud`, the home directory and its modes, the OAuth client file's
+shape without printing it, gates, each account's token and scopes, and
+the registrations found in each client's config) and exits 1 on any
+failure; with no command the process serves MCP over stdio.
 
-- `list_accounts` and `--list` print one warning line per account for
-  every gate that is on but not granted, naming the gates and scopes
-  together with one re-auth command, instead of a line per gate.
-- `search` and `search_threads` strip invisible characters from
-  snippets (zero-width spaces and joiners, byte order marks, soft
-  hyphens and the combining grapheme joiner that marketing mail pads
-  snippets with) and collapse the runs of spaces they leave behind.
-- `--auth` and `add_account` say so when the alias already existed and
-  its token was replaced.
-- `set_signature` with a whitespace-only `signature` clears the
-  signature instead of storing the blanks.
-- `delete_permanently` on threads counts only threads that hold
-  messages and says how many empty threads it skipped; the wording after
-  a failed `batchDelete` of one item is singular.
-- SECURITY.md spells out what each gate requests, that the full mail
-  scope of the delete gate also covers sending, and why trash and
-  untrash sit behind that gate.
-- Tool docstrings trimmed to what a model needs per call; the examples
-  that `search`, `modify_labels` and `create_filter` carried moved to
-  `docs/TOOLS.md`.
-- `send_message`, `create_draft`, `update_draft`, `reply` and `forward`
-  upload the message as `message/rfc822` media (resumable) instead of a
-  base64 `raw` field in the JSON body, which Gmail caps at 5 MB; the
-  attachments of one message may now total up to Gmail's 25 MB, checked
-  before the message is built, and nothing is sent above it. A message
-  with `html` and no plain `body` is sent as a single `text/html` part
-  instead of carrying an empty `text/plain` alternative. `forward`
-  checks the original's declared sizes before fetching anything, quotes
-  a body Gmail stored out of line instead of re-attaching it, and strips
-  `Bcc` from the original when forwarding it as an attachment. `reply`
-  lists each Cc address once and refuses a `cc` that does not parse
-  instead of dropping it.
-- `search` unescapes HTML entities in snippets (`&#39;` -> `'`).
-- Gmail API errors read `HTTP <status>: <message>` instead of the full
-  `HttpError` text with the request URL.
+**Accounts.** `list_accounts` (same text as `--list`), `add_account`,
+`remove_account` (optional `revoke` at Google), `get_profile`.
+
+**Read and search.** `search` (thread id and labels per hit, paging,
+`include_spam_trash`; snippets with HTML entities unescaped and
+invisible padding characters stripped, spaces collapsed), `search_threads`,
+`read_message` (Cc, labels, attachment list, text or HTML body),
+`read_thread` (`max_body`), `list_attachments` (stable part numbers,
+since Gmail's attachment ids change between reads) and
+`download_attachment`, which saves under `~/.wx-gmail-mcp/downloads/`
+with mode 600 and never overwrites unless asked.
+
+**Labels.** `list_labels` (type, opt-in counts), `create_label` (nested
+`Parent/Child` with missing parents created, colors, visibility),
+`update_label` (rename or move, colors, visibility; reports where nested
+labels went) and `delete_label` (the label only, never its messages).
+Every tool accepts labels by name or id; system labels are refused.
+
+**Organize.** `modify_labels`, `mark_read`, `mark_unread` and `archive`
+on id lists via `batchModify` in chunks of 1000; `modify_thread_labels`
+on whole threads; `modify_by_query` on every message matching a search,
+dry run by default with a five-message sample and a `limit` (default
+5000) above which the call fails. None of them adds `TRASH` or `SPAM`.
+
+**Trash and delete** (`WX_GMAIL_ALLOW_DELETE`). `trash` and `untrash`
+for messages or whole threads, up to 100 per call. `delete_permanently`
+takes explicit ids only (no query form, no empty-trash tool), at most
+100 per call, accepts only mail already in Trash unless
+`require_trashed=false`, fetches each item's date, sender and subject
+first as the audit trail, deletes exactly those messages in one
+`batchDelete` (for threads too), and is a dry run by default.
+
+**Drafts** (always on). `create_draft`, `list_drafts`, `get_draft`,
+`update_draft` (replaces the content; a reply draft keeps its thread and
+reply headers) and `delete_draft` (unsent drafts only, by id, up to
+100; permanent, since Gmail has no Trash for drafts). Drafts and sent
+mail take `cc`, `bcc`, `html`, `reply_to` and `attachments` from
+`~/.wx-gmail-mcp/outbox/`, uploaded as `message/rfc822` media so
+attachments may total 25 MB.
+
+**Send** (`WX_GMAIL_ALLOW_SENDING`). `send_message`, `send_draft`
+(reports the recipient and subject it had), `reply` (Reply-To or From,
+or the original recipients for the account's own mail; `reply_all`;
+quoted original with HTML rendered as text) and `forward` (quoted with
+attachments re-attached, or the whole original as a `message/rfc822`
+file with `Bcc` stripped). Both stay in the original's conversation and
+refuse recipient fields that do not parse instead of dropping them.
+
+**Filters** (`WX_GMAIL_ALLOW_SETTINGS`). `list_filters` and `get_filter`
+render criteria, the equivalent Gmail search and the action with label
+names. `create_filter` takes flat criteria flags, labels by name or id
+with `create_missing_labels`, the web UI's shortcuts (`skip_inbox`,
+`mark_read`, `star`, `always_important`, `never_important`,
+`never_spam`, `category`) and `delete`, which adds `TRASH` only when the
+delete gate is on too; `apply=true` also relabels existing matches
+through the same engine as `modify_by_query`, filter first so mail
+arriving in between is caught; dry run by default. `delete_filter`
+takes an id list; `replace_filter` creates the new filter, then deletes
+the old one (Gmail has no filter update).
+
+**Settings** (`WX_GMAIL_ALLOW_SETTINGS`). `get_vacation` and
+`set_vacation` (replaces the whole responder; dates as first and last
+day in the machine's zone or an IANA `timezone`; Gmail keeps only the
+HTML when both messages are given), `list_send_as` (identities with
+flags, verification status and the signature as stored) and
+`set_signature` (the signature only; whitespace clears it; Gmail refuses
+alias changes on personal accounts). Forwarding, auto-forwarding, alias
+creation and delegates are deliberately absent: they need the sharing
+scope, which the server never requests.
+
+**Setup and clients.** The setup skill
+`.agents/skills/setting-up-wx-gmail-mcp/` (Agent Skills format,
+reachable from Claude Code through `.claude/skills`): seven idempotent
+steps from prerequisites to a verified registration, with sign-in,
+policy acceptance and consent left to the user, and three stdlib-only
+scripts (`prereqs.py`, `gcloud_project.py`, `install_client_json.py`).
+`docs/SETUP-GOOGLE-CLOUD.md` is its human-readable twin.
+`docs/CLIENTS.md` has the registration for Claude Code, Claude Desktop,
+Codex CLI, Antigravity and Cursor, each checked against the client's
+documentation, and the compatibility matrix from live runs (Claude Code,
+Codex CLI and Antigravity CLI accepted all 41 tools with no schema,
+name or rendering issue). `docs/TOOLS.md` is the full tool catalogue:
+gate, scope, parameters, defaults, worked examples and the behaviors
+found in live use per tool, kept equal to the server by a test.
+
+**Repository.** README, AGENTS.md (conventions for contributors and
+agents, imported by CLAUDE.md), CONTRIBUTING.md, SECURITY.md (what the
+gates request, why trash sits behind the delete gate, private
+vulnerability reporting), CODEOWNERS, issue and PR templates; CI,
+gitleaks and a private-pattern guard, CodeQL, dependency review,
+zizmor, Dependabot and pre-commit hooks; automatic Claude review on
+pull requests with a verdict status check.
+
+[Unreleased]: https://github.com/whitechno/wx-gmail-mcp/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/whitechno/wx-gmail-mcp/releases/tag/v0.1.0
