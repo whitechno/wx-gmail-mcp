@@ -192,20 +192,24 @@ text, so a client that strips richer JSON Schema still gets every tool.
 
 ## Compatibility matrix
 
-Each tested client ran the same script against a real mailbox, with
-every gate on: `list_accounts`, `get_profile`, `list_labels`, `search`
-(`newer_than:7d`), `list_filters`, `create_filter` (dry run, then real,
-on a `wx-test` label created on the fly), `get_filter`,
-`delete_filter`, `delete_label` for the two test labels, and one
-settings-gate refusal on an account authorized with the base scopes
-only. Driven non-interactively where the client allows it.
+Each tested client ran a scripted pass against a real mailbox, with
+every gate on, built from the same steps: `list_accounts`,
+`get_profile`, `list_labels`, `search`, label create and relabel,
+`modify_by_query` dry run, draft create and delete, `create_filter`
+(dry run, then real with `apply`), `list_filters`, `delete_filter`,
+`delete_label` for the test labels, `get_vacation`, signature set and
+cleared, `list_send_as`, and one settings-gate refusal on an account
+authorized with the base scopes only. Driven non-interactively where
+the client allows it; in Claude Desktop the prompts were typed by hand
+and the effects checked from another client. Every pass ended with the
+mailbox back at system labels only, no filters and no drafts.
 
 | Client | Version | Tested | Tools accepted | Schema | Names | Results | Notes |
 |---|---|---|---|---|---|---|---|
 | Claude Code | 2.1.289 | 2026-10-05 | 41 of 41 | no complaints | fine | verbatim | Local-scope registration. Claude Code starts the server once per process and keeps it across `/clear`, so a long-running process kept an older 27-tool list after the server gained tools; restart Claude Code after upgrading the server. |
-| Codex CLI | 0.160.0 | 2026-10-05 | 41 of 41 | no complaints | fine | verbatim | `codex exec`. With the default 10 s `startup_timeout_sec` one run saw no tools; 30 s fixed it. Codex loads MCP tool metadata through its own discovery step, whose first listing of 41 tools was truncated on its side; the calls were unaffected. No approval prompts in `exec` mode. |
-| Antigravity CLI | 1.2.14 | 2026-10-05 | 41 of 41 | no complaints | fine | verbatim | `agy --print`. No permission prompts for MCP tools in print mode. |
-| Claude Desktop | - | not run | - | - | - | - | Planned for the release candidate. |
+| Claude Desktop | 2.19675.0 | 2026-10-05 | 41 of 41 | no complaints | fine | verbatim | `claude_desktop_config.json` entry with absolute paths; the app starts one server process per window and listed the tools within two seconds of a restart. Each tool call asks for approval in the chat. |
+| Codex CLI | 0.160.0, 0.160.1 | 2026-10-05 | 41 of 41 | no complaints | fine | verbatim | `codex exec`. With the default 10 s `startup_timeout_sec` one run saw no tools; 30 s fixed it. On a machine at load average 500 and above, two runs found no tools whatever the timeout (the server itself took two minutes to start); the same script passed once the machine was quiet. Codex loads MCP tool metadata through its own discovery step, whose first listing of 41 tools was truncated on its side; the calls were unaffected. No approval prompts in `exec` mode. |
+| Antigravity CLI | 1.2.14, 1.2.17 | 2026-10-05 | 41 of 41 | no complaints | fine | verbatim | `agy --print`, optionally `--output-format json`. No permission prompts for MCP tools in print mode. |
 | Cursor | - | not run | - | - | - | - | - |
 
 "Tools accepted" is the number the client listed out of the 41 the

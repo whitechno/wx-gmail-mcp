@@ -73,7 +73,7 @@ def test_modify_by_query_validation(settings: Settings) -> None:
     fake = _fake(["m1"])
     mcp = tool_server(settings, fake)
     assert call(mcp, "modify_by_query", account="work", query="x") == (
-        "Error: Give at least one label to add or remove."
+        "Error: Give at least one label in `add` or `remove`."
     )
     assert call(mcp, "modify_by_query", account="work", query="x", add=["TRASH"]) == (
         "Error: modify_by_query does not add TRASH: that makes mail disappear. "
@@ -158,7 +158,7 @@ def test_modify_thread_labels_validation(settings: Settings) -> None:
         "Error: thread_ids must contain at least one id."
     )
     assert call(mcp, "modify_thread_labels", account="work", thread_ids=["t1"]) == (
-        "Error: Give at least one label to add or remove."
+        "Error: Give at least one label in `add` or `remove`."
     )
     assert call(
         mcp, "modify_thread_labels", account="work", thread_ids=["t1"], add=["spam"]

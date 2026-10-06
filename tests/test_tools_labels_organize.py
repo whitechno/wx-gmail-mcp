@@ -70,7 +70,7 @@ def test_modify_labels_validation(settings: Settings) -> None:
     fake = _fake()
     mcp = tool_server(settings, fake)
     assert call(mcp, "modify_labels", account="work", message_ids=["m1"]) == (
-        "Error: Give at least one label to add or remove."
+        "Error: Give at least one label in `add` or `remove`."
     )
     assert call(mcp, "modify_labels", account="work", message_ids=[], add=["x"]) == (
         "Error: message_ids must contain at least one id."

@@ -725,7 +725,8 @@ create_draft(account="work", to="someone@example.com", subject="wx-test: report"
 Draft created. draft id=r-1234567890123456789 message id=18f3a2d5e6f7a8b9
 ```
 
-Draft ids look like `r-<digits>`; the draft's message has its own id.
+Draft ids are `r` followed by a signed number (`r-4556...` or `r8914...`);
+the draft's message has its own id.
 
 ### `list_drafts`
 
