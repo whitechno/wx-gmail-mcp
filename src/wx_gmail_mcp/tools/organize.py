@@ -26,7 +26,7 @@ def resolve_changes(
 ) -> tuple[list[str], list[str]]:
     """Label refs to ids for a relabel; refuses an empty change and TRASH/SPAM."""
     if not add and not remove:
-        raise WxGmailError("Give at least one label to add or remove.")
+        raise WxGmailError("Give at least one label in `add` or `remove`.")
     add_ids = labels.resolve_all(list(add))
     remove_ids = labels.resolve_all(list(remove))
     blocked = sorted(DISAPPEARING_LABELS & set(add_ids))

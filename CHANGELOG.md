@@ -12,7 +12,7 @@ Nothing yet.
 
 The first release: a self-hosted, multi-account Gmail MCP server over
 stdio, 25 always-on tools plus 16 behind three opt-in gates, tested
-against Claude Code, Codex CLI and Antigravity CLI.
+against Claude Code, Claude Desktop, Codex CLI and Antigravity CLI.
 
 ### Added
 
@@ -124,8 +124,8 @@ scripts (`prereqs.py`, `gcloud_project.py`, `install_client_json.py`).
 `docs/CLIENTS.md` has the registration for Claude Code, Claude Desktop,
 Codex CLI, Antigravity and Cursor, each checked against the client's
 documentation, and the compatibility matrix from live runs (Claude Code,
-Codex CLI and Antigravity CLI accepted all 41 tools with no schema,
-name or rendering issue). `docs/TOOLS.md` is the full tool catalogue:
+Claude Desktop, Codex CLI and Antigravity CLI accepted all 41 tools with
+no schema, name or rendering issue). `docs/TOOLS.md` is the full tool catalogue:
 gate, scope, parameters, defaults, worked examples and the behaviors
 found in live use per tool, kept equal to the server by a test.
 

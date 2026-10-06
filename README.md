@@ -33,9 +33,9 @@ to create a Google Cloud project, and no need for filters or bulk
 operations.
 
 **Status:** `v0.1.0`, the first release (2026-10-05); see
-[CHANGELOG.md](CHANGELOG.md). Tested with Claude Code, Codex CLI and
-Antigravity CLI; one maintainer, no PyPI package yet (install from the
-repository as shown below).
+[CHANGELOG.md](CHANGELOG.md). Tested with Claude Code, Claude Desktop,
+Codex CLI and Antigravity CLI; one maintainer, no PyPI package yet
+(install from the repository as shown below).
 
 ## Quick start
 
