@@ -84,13 +84,14 @@ scopes when you authorize.
 **Clients** > **Create client**:
 
 - Application type **Desktop app**, name `wx-gmail-mcp-desktop`.
-- Tick **"This client will be used by an AI-powered agent"**. The
-  console's help text says it "designates this client for AI agents
-  that take actions on behalf of users", which is what an MCP server
-  does. It is a declaration to Google, not a switch: in a side-by-side
-  test on 2026-10-05 the consent screens and granted scopes were the
-  same with and without it, and Google's public OAuth docs do not
-  describe it. A client created without it works too.
+- Leave **"This client will be used by an AI-powered agent"**
+  unticked. Google's own Workspace MCP servers require that setting
+  ([help page](https://support.google.com/cloud/answer/15549257#agentic-client));
+  wx-gmail-mcp does not use them. It calls the Gmail REST API, which
+  works the same either way. From 2026-11-12 the setting is permanent
+  on an existing client, and on a Google Workspace account the
+  organization's admins can apply separate agent policies to clients
+  that have it. A client created with it ticked works too.
 - **Create**, then **Download JSON** in the confirmation dialog. The
   file is called `client_secret_<id>.json`; note where the browser put
   it (Chrome may use a subfolder of Downloads). You can download it
