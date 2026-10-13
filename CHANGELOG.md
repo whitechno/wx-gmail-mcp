@@ -6,7 +6,12 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- Setup docs and the setup skill now say to leave the OAuth client's
+  "used by an AI-powered agent" (`is_agentic`) box unticked. Google
+  ties it to its own Workspace MCP servers, which wx-gmail-mcp does not
+  call, and makes it permanent on existing clients from 2026-11-12.
 
 ## [0.1.0] - 2026-10-05
 

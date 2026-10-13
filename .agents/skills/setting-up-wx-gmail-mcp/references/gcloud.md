@@ -74,8 +74,8 @@ Create client:
 
 - Application type: **Desktop app**.
 - Name: `wx-gmail-mcp-desktop`.
-- "This client will be used by an AI-powered agent": tick it. See the
-  note below.
+- "This client will be used by an AI-powered agent": leave it
+  unticked. See the note below.
 - Create. The confirmation dialog shows the client id and, once only,
   the secret. **[you]**: **Download JSON** (a download is the user's
   action) and OK. The file is `client_secret_<id>.json`, about 400
@@ -91,19 +91,27 @@ The client JSON holds the client id and secret. It goes to
 ### The "AI-powered agent" option
 
 The client form has a checkbox "This client will be used by an
-AI-powered agent". Its help text in the console (2026-10-05) reads:
-"Designates this client for AI agents that take actions on behalf of
-users. If your application supports both AI agent workflows and
-standard user features, use separate OAuth clients for each." Google's
-public OAuth documentation does not describe the option.
+AI-powered agent" (the `is_agentic` setting). Its help text in the
+console (2026-10-13) reads: "Designates this client for AI agents that
+take actions on behalf of users. Select this if your client uses Google
+MCP tools." Google's help page
+(https://support.google.com/cloud/answer/15549257#agentic-client) adds
+that the flag grants no extra scopes and that Google's own Workspace
+MCP servers accept only agentic clients.
 
-That is what wx-gmail-mcp is, so tick it. It is a declaration to
-Google, not a switch: with it ticked, the Desktop client type, the
-loopback redirect, the consent screens and the granted scopes were
-identical to an unticked client in a side-by-side test (Testing
-status, a test user, base scopes). A client created without it works
-the same today. Whatever Google ties to the flag later (review,
-policy, consent wording) will apply to clients that declared it.
+wx-gmail-mcp does not call Google's MCP servers; it calls the Gmail
+REST API, which works the same either way. So leave it unticked:
+
+- From 2026-11-12 the setting is permanent on an existing client;
+  changing it means a new client and a fresh `--auth` for every
+  account. Unticked keeps that option open.
+- On a Google Workspace account, the organization's admins can apply
+  separate agent access policies to agentic clients, which may be
+  stricter than their policy for ordinary apps.
+
+In a side-by-side test (2026-10-05) the consent screens and granted
+scopes were the same with and without it. A client created with it
+ticked works too.
 
 ## Publishing status
 

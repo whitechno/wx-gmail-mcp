@@ -67,8 +67,9 @@ needs their own project (one consent screen per project):
    added as a test user. **[you]** sign-in, the policy acceptance on the
    wizard's last step, and any 2FA prompt.
 3. **Desktop client** (console only): Clients > Create client, type
-   Desktop app, name `wx-gmail-mcp-desktop`, tick "used by an
-   AI-powered agent" (`references/gcloud.md` says why), create. **[you]**
+   Desktop app, name `wx-gmail-mcp-desktop`, leave "used by an
+   AI-powered agent" unticked (`references/gcloud.md` says why),
+   create. **[you]**
    **Download JSON** on the confirmation dialog, and say where the
    browser saved it.
 
